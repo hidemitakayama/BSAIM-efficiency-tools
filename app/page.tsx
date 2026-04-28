@@ -165,6 +165,13 @@ type CustomOption = {
   monthly: number;
 };
 
+type PerUseOption = {
+  id: number;
+  name: string;
+  unitPrice: number;
+  monthlyCount: number;
+};
+
 type ChatMessage = { role: 'user' | 'assistant'; content: string };
 
 // =====================================================
@@ -204,6 +211,10 @@ export default function PriceSimulatorPage() {
   const [customOptions, setCustomOptions] = useState<CustomOption[]>([]);
   const [nextCustomId, setNextCustomId] = useState(1);
 
+  // ----- 従量課金オプション -----
+  const [perUseOptions, setPerUseOptions] = useState<PerUseOption[]>([]);
+  const [nextPerUseId, setNextPerUseId] = useState(1);
+
   // ----- HP プラン -----
   const [hpPlan, setHpPlan] = useState<HpPlanId>('premium');
 
@@ -234,6 +245,20 @@ export default function PriceSimulatorPage() {
   };
   const removeCustomOption = (id: number) => {
     setCustomOptions((prev) => prev.filter((o) => o.id !== id));
+  };
+
+  const addPerUseOption = () => {
+    setPerUseOptions((prev) => [
+      ...prev,
+      { id: nextPerUseId, name: '', unitPrice: 0, monthlyCount: 0 },
+    ]);
+    setNextPerUseId((n) => n + 1);
+  };
+  const updatePerUseOption = (id: number, patch: Partial<PerUseOption>) => {
+    setPerUseOptions((prev) => prev.map((o) => (o.id === id ? { ...o, ...patch } : o)));
+  };
+  const removePerUseOption = (id: number) => {
+    setPerUseOptions((prev) => prev.filter((o) => o.id !== id));
   };
 
   // =====================================================
@@ -272,12 +297,21 @@ export default function PriceSimulatorPage() {
     const blogRevenue = blogChargeableUnits * blogUnitPrice;
     const customInitialRevenue = customOptions.reduce((s, o) => s + (o.initial || 0), 0);
     const customMonthlyRevenue = customOptions.reduce((s, o) => s + (o.monthly || 0), 0);
+    const perUseMonthlyRevenue = perUseOptions.reduce(
+      (sum, option) => sum + (option.unitPrice || 0) * (option.monthlyCount || 0),
+      0,
+    );
 
     // 売上合計
     const initialRevenue =
       serviceInitialRevenue + extraPagesRevenue + blogRevenue + customInitialRevenue;
     const consultingRevenue = consultingEnabled ? consultingMonthly : 0;
-    const monthlyRevenue = serviceMonthlyRevenue + extraRevisionsRevenue + customMonthlyRevenue + consultingRevenue;
+    const monthlyRevenue =
+      serviceMonthlyRevenue +
+      extraRevisionsRevenue +
+      customMonthlyRevenue +
+      perUseMonthlyRevenue +
+      consultingRevenue;
 
     // 原価
     const initialLaborCost = totalInitialHours * hourlyRate;
@@ -359,6 +393,7 @@ export default function PriceSimulatorPage() {
       blogChargeableUnits,
       customInitialRevenue,
       customMonthlyRevenue,
+      perUseMonthlyRevenue,
       cumulativeData,
       breakdownData,
     };
@@ -375,6 +410,7 @@ export default function PriceSimulatorPage() {
     blogUnits,
     blogUnitPrice,
     customOptions,
+    perUseOptions,
     hpPlan,
     consultingEnabled,
   ]);
@@ -405,7 +441,7 @@ export default function PriceSimulatorPage() {
         : 'なし',
       ``,
       `■ 追加オプション`,
-      `コンサルティング: ${consultingEnabled ? `ON（¥${fmt(consultingMonthly)}/月）` : 'OFF'} / 追加ページ: ${extraPages}P（¥${fmt(calc.extraPagesRevenue)}） / 超過修正: ${extraRevisions}回（¥${fmt(calc.extraRevisionsRevenue)}） / ブログ移管: ${blogUnits}単位（¥${fmt(calc.blogRevenue)})`,
+      `コンサルティング: ${consultingEnabled ? `ON（¥${fmt(consultingMonthly)}/月）` : 'OFF'} / 追加ページ: ${extraPages}P（¥${fmt(calc.extraPagesRevenue)}） / 超過修正: ${extraRevisions}回（¥${fmt(calc.extraRevisionsRevenue)}） / ブログ移管: ${blogUnits}単位（¥${fmt(calc.blogRevenue)}） / 従量課金: ${perUseOptions.length > 0 ? `¥${fmt(calc.perUseMonthlyRevenue)}/月` : 'なし'}`,
       ``,
       `■ シミュレーション結果`,
       `初期: 売上¥${fmt(calc.initialRevenue)} / 原価¥${fmt(calc.initialLaborCost)} / 粗利¥${fmt(calc.initialProfit)} / 利益率${fmtPct(calc.initialMargin)}`,
@@ -848,52 +884,160 @@ export default function PriceSimulatorPage() {
                           className="grid grid-cols-12 items-end gap-2 rounded-md bg-white p-2 ring-1 ring-slate-200"
                         >
                           <div className="col-span-12 sm:col-span-4">
-                            <label className="mb-0.5 block text-[10px] font-medium text-slate-500">
-                              名称
-                            </label>
-                            <input
-                              value={o.name}
-                              onChange={(e) =>
-                                updateCustomOption(o.id, { name: e.target.value })
-                              }
-                              placeholder="例: SEO記事制作"
-                              className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                            />
+                            <div className="h-full rounded-lg border border-slate-200 bg-slate-50/40 p-2">
+                              <label className="mb-1 flex items-center gap-1.5 text-[11px] font-medium text-slate-600">
+                                名称
+                              </label>
+                              <input
+                                value={o.name}
+                                onChange={(e) =>
+                                  updateCustomOption(o.id, { name: e.target.value })
+                                }
+                                placeholder="例: SEO記事制作"
+                                className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                              />
+                            </div>
                           </div>
                           <div className="col-span-5 sm:col-span-3">
-                            <label className="mb-0.5 block text-[10px] font-medium text-slate-500">
-                              初期 (円)
-                            </label>
-                            <input
-                              type="number"
+                            <NumberField
+                              compact
+                              label="初期"
+                              suffix="円"
                               value={o.initial}
-                              onChange={(e) =>
+                              onChange={(v) =>
                                 updateCustomOption(o.id, {
-                                  initial: Number(e.target.value) || 0,
+                                  initial: v,
                                 })
                               }
-                              className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm tabular-nums focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                              min={0}
                             />
                           </div>
                           <div className="col-span-5 sm:col-span-3">
-                            <label className="mb-0.5 block text-[10px] font-medium text-slate-500">
-                              月額 (円)
-                            </label>
-                            <input
-                              type="number"
+                            <NumberField
+                              compact
+                              label="月額"
+                              suffix="円"
                               value={o.monthly}
-                              onChange={(e) =>
+                              onChange={(v) =>
                                 updateCustomOption(o.id, {
-                                  monthly: Number(e.target.value) || 0,
+                                  monthly: v,
                                 })
                               }
-                              className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm tabular-nums focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                              min={0}
                             />
                           </div>
                           <div className="col-span-2 sm:col-span-2 flex justify-end">
                             <button
                               type="button"
                               onClick={() => removeCustomOption(o.id)}
+                              className="rounded-md p-2 text-slate-400 transition hover:bg-rose-50 hover:text-rose-600"
+                              aria-label="削除"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* 従量課金オプション */}
+                <div className="rounded-lg border border-slate-200 bg-slate-50/50 p-3">
+                  <div className="mb-3 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="rounded-md bg-purple-100 p-1.5 text-purple-600">
+                        <BarChart3 className="h-4 w-4" />
+                      </span>
+                      <div>
+                        <div className="text-sm font-semibold text-slate-900">
+                          従量課金メニュー
+                        </div>
+                        <div className="text-[10px] text-slate-400">
+                          単価 × 月間回数で月額売上に加算
+                        </div>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={addPerUseOption}
+                      className="flex items-center gap-1 rounded-md bg-white px-2.5 py-1.5 text-xs font-medium text-indigo-600 shadow-sm ring-1 ring-slate-200 transition hover:bg-indigo-50"
+                    >
+                      <Plus className="h-3.5 w-3.5" /> 追加
+                    </button>
+                  </div>
+
+                  {perUseOptions.length === 0 ? (
+                    <div className="rounded-md border border-dashed border-slate-300 bg-white py-4 text-center text-xs text-slate-400">
+                      回数課金のメニューを追加してください
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {perUseOptions.map((option) => (
+                        <div
+                          key={option.id}
+                          className="grid grid-cols-12 items-end gap-2 rounded-md bg-white p-2 ring-1 ring-slate-200"
+                        >
+                          <div className="col-span-12 sm:col-span-4">
+                            <div className="h-full rounded-lg border border-slate-200 bg-slate-50/40 p-2">
+                              <label className="mb-1 flex items-center gap-1.5 text-[11px] font-medium text-slate-600">
+                                名称
+                              </label>
+                              <input
+                                value={option.name}
+                                onChange={(e) =>
+                                  updatePerUseOption(option.id, { name: e.target.value })
+                                }
+                                placeholder="例: AI記事作成"
+                                className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                              />
+                            </div>
+                          </div>
+                          <div className="col-span-4 sm:col-span-2">
+                            <NumberField
+                              compact
+                              label="単価"
+                              suffix="円"
+                              value={option.unitPrice}
+                              onChange={(v) =>
+                                updatePerUseOption(option.id, {
+                                  unitPrice: v,
+                                })
+                              }
+                              min={0}
+                            />
+                          </div>
+                          <div className="col-span-4 sm:col-span-2">
+                            <NumberField
+                              compact
+                              label="月間回数"
+                              suffix="回"
+                              value={option.monthlyCount}
+                              onChange={(v) =>
+                                updatePerUseOption(option.id, {
+                                  monthlyCount: v,
+                                })
+                              }
+                              min={0}
+                            />
+                          </div>
+                          <div className="col-span-4 sm:col-span-2">
+                            <div className="h-full rounded-lg border border-slate-200 bg-slate-50/40 p-2">
+                              <label className="mb-1 flex items-center gap-1.5 text-[11px] font-medium text-slate-600">
+                                月額加算
+                              </label>
+                              <div className="rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1.5 text-right text-sm font-bold tabular-nums text-emerald-700">
+                                ¥{fmt(option.unitPrice * option.monthlyCount)}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="col-span-12 flex justify-between sm:col-span-2 sm:justify-end">
+                            <div className="text-[10px] text-slate-400 sm:hidden">
+                              月額売上に加算
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => removePerUseOption(option.id)}
                               className="rounded-md p-2 text-slate-400 transition hover:bg-rose-50 hover:text-rose-600"
                               aria-label="削除"
                             >
@@ -1165,6 +1309,10 @@ export default function PriceSimulatorPage() {
                   <DetailRow
                     label="独自オプション"
                     value={`¥${fmt(calc.customMonthlyRevenue)}`}
+                  />
+                  <DetailRow
+                    label="従量課金メニュー"
+                    value={`¥${fmt(calc.perUseMonthlyRevenue)}`}
                   />
                   <DetailRow
                     label="売上合計"
