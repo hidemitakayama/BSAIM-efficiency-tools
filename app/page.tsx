@@ -612,9 +612,6 @@ export default function PriceSimulatorPage() {
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <Badge color="indigo">{calc.enabledServices.length} プラン選択中</Badge>
-            <Badge color="green">縛り {contractMonths}ヶ月</Badge>
-            <Badge color="amber">時給 ¥{fmt(hourlyRate)}</Badge>
             <button
               type="button"
               onClick={() => setSaveModalOpen(true)}
