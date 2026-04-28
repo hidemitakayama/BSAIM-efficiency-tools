@@ -65,19 +65,27 @@ type ServiceDef = {
   description?: string;
 };
 
+type HpPlanId = 'minimal' | 'premium' | 'pro' | 'max';
+
+const HP_PLANS: { id: HpPlanId; name: string; initialFee: number; monthlyFee: number; badge?: string }[] = [
+  { id: 'minimal', name: 'ミニマム', initialFee: 0, monthlyFee: 2_000 },
+  { id: 'premium', name: 'プレミアム', initialFee: 0, monthlyFee: 6_800, badge: '人気' },
+  { id: 'pro', name: 'プロ', initialFee: 100_000, monthlyFee: 6_800 },
+  { id: 'max', name: 'MAX', initialFee: 200_000, monthlyFee: 12_800 },
+];
+
 const SERVICES: ServiceDef[] = [
   {
     id: 'hp',
-    name: 'HP制作 プレミアム',
+    name: 'HP制作',
     icon: Globe,
-    initialFee: 100_000,
+    initialFee: 0,
     monthlyFee: 6_800,
     defaultInitialHours: 40,
     defaultMonthlyHours: 3,
     basePages: 15,
     baseRevisions: 10,
-    badge: '人気',
-    description: '基本15ページ・月10回まで修正対応',
+    description: '5〜15P・月10回まで修正対応',
   },
   {
     id: 'sns',
@@ -87,7 +95,7 @@ const SERVICES: ServiceDef[] = [
     monthlyFee: 5_500,
     defaultInitialHours: 10,
     defaultMonthlyHours: 8,
-    description: '投稿企画・画像制作・分析レポート',
+    description: 'AI投稿自動生成・インサイト分析',
   },
   {
     id: 'meo',
@@ -97,11 +105,11 @@ const SERVICES: ServiceDef[] = [
     monthlyFee: 5_500,
     defaultInitialHours: 8,
     defaultMonthlyHours: 4,
-    description: 'Googleビジネスプロフィール最適化',
+    description: 'AI口コミ返信・投稿自動生成',
   },
   {
     id: 'full',
-    name: 'フルセットプラン',
+    name: 'フルセット (HP+IG+MEO)',
     icon: Layers,
     initialFee: 60_000,
     monthlyFee: 14_800,
@@ -110,7 +118,37 @@ const SERVICES: ServiceDef[] = [
     basePages: 15,
     baseRevisions: 10,
     badge: 'お得',
-    description: 'HP / SNS / MEO すべてセット',
+    description: 'HP Premium + Instagram + MEO すべてセット',
+  },
+  {
+    id: 'hp_sns',
+    name: 'HP + Instagram セット',
+    icon: Globe,
+    initialFee: 60_000,
+    monthlyFee: 11_000,
+    defaultInitialHours: 50,
+    defaultMonthlyHours: 11,
+    description: 'HP制作(プレミアム) + Instagram運用代行',
+  },
+  {
+    id: 'hp_meo',
+    name: 'HP + MEO セット',
+    icon: Globe,
+    initialFee: 60_000,
+    monthlyFee: 11_000,
+    defaultInitialHours: 48,
+    defaultMonthlyHours: 7,
+    description: 'HP制作(プレミアム) + MEO対策',
+  },
+  {
+    id: 'sns_meo',
+    name: 'Instagram + MEO セット',
+    icon: Instagram,
+    initialFee: 60_000,
+    monthlyFee: 11_000,
+    defaultInitialHours: 18,
+    defaultMonthlyHours: 12,
+    description: 'Instagram運用代行 + MEO対策',
   },
 ];
 
@@ -166,6 +204,13 @@ export default function PriceSimulatorPage() {
   const [customOptions, setCustomOptions] = useState<CustomOption[]>([]);
   const [nextCustomId, setNextCustomId] = useState(1);
 
+  // ----- HP プラン -----
+  const [hpPlan, setHpPlan] = useState<HpPlanId>('premium');
+
+  // ----- コンサルティング -----
+  const [consultingEnabled, setConsultingEnabled] = useState(false);
+  const consultingMonthly = 5_000;
+
   // ----- チャット -----
   const [chatOpen, setChatOpen] = useState(false);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
@@ -197,9 +242,18 @@ export default function PriceSimulatorPage() {
   const calc = useMemo(() => {
     const enabledServices = SERVICES.filter((s) => serviceState[s.id]?.enabled);
 
+    // HP プランの料金を動的に取得
+    const getServiceFees = (s: ServiceDef) => {
+      if (s.id === 'hp') {
+        const plan = HP_PLANS.find((p) => p.id === hpPlan)!;
+        return { initialFee: plan.initialFee, monthlyFee: plan.monthlyFee };
+      }
+      return { initialFee: s.initialFee, monthlyFee: s.monthlyFee };
+    };
+
     // サービス売上
-    const serviceInitialRevenue = enabledServices.reduce((sum, s) => sum + s.initialFee, 0);
-    const serviceMonthlyRevenue = enabledServices.reduce((sum, s) => sum + s.monthlyFee, 0);
+    const serviceInitialRevenue = enabledServices.reduce((sum, s) => sum + getServiceFees(s).initialFee, 0);
+    const serviceMonthlyRevenue = enabledServices.reduce((sum, s) => sum + getServiceFees(s).monthlyFee, 0);
 
     // 工数合計
     const totalInitialHours = enabledServices.reduce(
@@ -222,7 +276,8 @@ export default function PriceSimulatorPage() {
     // 売上合計
     const initialRevenue =
       serviceInitialRevenue + extraPagesRevenue + blogRevenue + customInitialRevenue;
-    const monthlyRevenue = serviceMonthlyRevenue + extraRevisionsRevenue + customMonthlyRevenue;
+    const consultingRevenue = consultingEnabled ? consultingMonthly : 0;
+    const monthlyRevenue = serviceMonthlyRevenue + extraRevisionsRevenue + customMonthlyRevenue + consultingRevenue;
 
     // 原価
     const initialLaborCost = totalInitialHours * hourlyRate;
@@ -283,6 +338,7 @@ export default function PriceSimulatorPage() {
       enabledServices,
       serviceInitialRevenue,
       serviceMonthlyRevenue,
+      consultingRevenue,
       initialRevenue,
       monthlyRevenue,
       initialLaborCost,
@@ -319,6 +375,8 @@ export default function PriceSimulatorPage() {
     blogUnits,
     blogUnitPrice,
     customOptions,
+    hpPlan,
+    consultingEnabled,
   ]);
 
   // =====================================================
@@ -339,12 +397,15 @@ export default function PriceSimulatorPage() {
       `■ 選択中サービス`,
       calc.enabledServices.length > 0
         ? calc.enabledServices
-            .map((s) => `${s.name}（初期¥${fmt(s.initialFee)} / 月額¥${fmt(s.monthlyFee)}）`)
+            .map((s) => {
+              const fees = s.id === 'hp' ? HP_PLANS.find(p => p.id === hpPlan)! : s;
+              return `${s.name}${s.id === 'hp' ? `(${HP_PLANS.find(p => p.id === hpPlan)!.name})` : ''}（初期¥${fmt(fees.initialFee)} / 月額¥${fmt(fees.monthlyFee)}）`;
+            })
             .join(', ')
         : 'なし',
       ``,
       `■ 追加オプション`,
-      `追加ページ: ${extraPages}P（¥${fmt(calc.extraPagesRevenue)}） / 超過修正: ${extraRevisions}回（¥${fmt(calc.extraRevisionsRevenue)}） / ブログ移管: ${blogUnits}単位（¥${fmt(calc.blogRevenue)})`,
+      `コンサルティング: ${consultingEnabled ? `ON（¥${fmt(consultingMonthly)}/月）` : 'OFF'} / 追加ページ: ${extraPages}P（¥${fmt(calc.extraPagesRevenue)}） / 超過修正: ${extraRevisions}回（¥${fmt(calc.extraRevisionsRevenue)}） / ブログ移管: ${blogUnits}単位（¥${fmt(calc.blogRevenue)})`,
       ``,
       `■ シミュレーション結果`,
       `初期: 売上¥${fmt(calc.initialRevenue)} / 原価¥${fmt(calc.initialLaborCost)} / 粗利¥${fmt(calc.initialProfit)} / 利益率${fmtPct(calc.initialMargin)}`,
@@ -542,11 +603,52 @@ export default function PriceSimulatorPage() {
                             )}
                           </div>
                           <div className="mt-0.5 text-xs text-slate-500">
-                            初期 ¥{fmt(s.initialFee)} / 月額 ¥{fmt(s.monthlyFee)}
-                            {s.description && ` ・ ${s.description}`}
+                            {s.id === 'hp' ? (
+                              <>
+                                初期 ¥{fmt(HP_PLANS.find(p => p.id === hpPlan)!.initialFee)} / 月額 ¥{fmt(HP_PLANS.find(p => p.id === hpPlan)!.monthlyFee)}
+                                {s.description && ` ・ ${s.description}`}
+                              </>
+                            ) : (
+                              <>
+                                初期 ¥{fmt(s.initialFee)} / 月額 ¥{fmt(s.monthlyFee)}
+                                {s.description && ` ・ ${s.description}`}
+                              </>
+                            )}
                           </div>
                         </div>
                       </label>
+
+                      {st.enabled && s.id === 'hp' && (
+                        <div className="mt-3 grid grid-cols-4 gap-1.5 border-t border-indigo-100 pt-3">
+                          {HP_PLANS.map((plan) => (
+                            <button
+                              key={plan.id}
+                              type="button"
+                              onClick={() => setHpPlan(plan.id)}
+                              className={`rounded-lg px-1.5 py-2 text-center transition ${
+                                hpPlan === plan.id
+                                  ? 'bg-indigo-600 text-white shadow'
+                                  : 'bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50'
+                              }`}
+                            >
+                              <div className="text-[11px] font-semibold leading-tight">
+                                {plan.name}
+                                {plan.badge && (
+                                  <span className={`ml-1 rounded-full px-1 py-0.5 text-[8px] font-bold ${hpPlan === plan.id ? 'bg-white/20 text-white' : 'bg-amber-100 text-amber-700'}`}>
+                                    {plan.badge}
+                                  </span>
+                                )}
+                              </div>
+                              <div className={`mt-0.5 text-[9px] ${hpPlan === plan.id ? 'text-indigo-100' : 'text-slate-400'}`}>
+                                {plan.initialFee > 0 ? `初期¥${(plan.initialFee/10000).toFixed(0)}万` : '初期¥0'}
+                              </div>
+                              <div className={`text-[10px] font-bold ${hpPlan === plan.id ? 'text-white' : 'text-slate-700'}`}>
+                                ¥{plan.monthlyFee.toLocaleString()}/月
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      )}
 
                       {st.enabled && (
                         <div className="mt-4 grid grid-cols-2 gap-3 border-t border-indigo-100 pt-3">
@@ -589,6 +691,29 @@ export default function PriceSimulatorPage() {
               subtitle="基本プランに追加するアップセル要素"
             >
               <div className="space-y-3">
+                {/* コンサルティング */}
+                <div className={`rounded-lg border-2 p-3 transition-all ${consultingEnabled ? 'border-purple-300 bg-purple-50/40' : 'border-slate-200 bg-white'}`}>
+                  <label className="flex cursor-pointer items-center gap-3">
+                    <input
+                      type="checkbox"
+                      checked={consultingEnabled}
+                      onChange={(e) => setConsultingEnabled(e.target.checked)}
+                      className="h-4 w-4 rounded border-slate-300 text-purple-600 focus:ring-purple-500"
+                    />
+                    <div className={`rounded-md p-1.5 ${consultingEnabled ? 'bg-purple-500 text-white' : 'bg-slate-100 text-slate-500'}`}>
+                      <Target className="h-4 w-4" />
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-semibold text-slate-900">コンサルティング</span>
+                        <span className="rounded-full bg-purple-100 px-2 py-0.5 text-[10px] font-bold text-purple-700">月額売上</span>
+                      </div>
+                      <div className="text-xs text-slate-500">月額 ¥5,000 ・ 戦略提案・分析レポート・改善施策</div>
+                    </div>
+                    <div className="text-sm font-bold text-purple-600">+¥{fmt(consultingMonthly)}/月</div>
+                  </label>
+                </div>
+
                 {/* 追加ページ */}
                 <AddonRow
                   icon={<FileText className="h-4 w-4" />}
