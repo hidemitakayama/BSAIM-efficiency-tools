@@ -296,7 +296,15 @@ export default function PriceSimulatorPage() {
       if (saved.toolCost !== undefined) setToolCost(saved.toolCost);
       if (saved.clientCount !== undefined) setClientCount(saved.clientCount);
       if (saved.contractMonths !== undefined) setContractMonths(saved.contractMonths);
-      if (saved.serviceState !== undefined) setServiceState(saved.serviceState);
+      if (saved.serviceState !== undefined) {
+        setServiceState((prev) => {
+          const merged: Record<string, ServiceState> = { ...prev };
+          for (const [id, savedSt] of Object.entries(saved.serviceState as Record<string, ServiceState>)) {
+            if (merged[id]) merged[id] = { ...merged[id], ...(savedSt as ServiceState) };
+          }
+          return merged;
+        });
+      }
       if (saved.consultingEnabled !== undefined) setConsultingEnabled(saved.consultingEnabled);
       if (saved.consultingItems !== undefined) setConsultingItems(saved.consultingItems);
     } catch { /* 破損データは無視 */ }
