@@ -35,6 +35,7 @@ import {
   PiggyBank,
   Plus,
   Receipt,
+  Save,
   Send,
   Settings,
   Sparkles,
@@ -181,6 +182,11 @@ type PerUseOption = {
 
 type ChatMessage = { role: 'user' | 'assistant'; content: string };
 
+const STORAGE_KEY = 'price-simulator-v1';
+
+const toHalfWidth = (s: string) =>
+  s.replace(/[０-９．]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xfee0));
+
 const HP_INCLUDED_SERVICE_IDS = ['hp', 'full', 'hp_sns', 'hp_meo'] as const;
 const HP_BUNDLE_SERVICE_IDS = ['full', 'hp_sns', 'hp_meo'] as const;
 const PREMIUM_HP_PLAN = HP_PLANS.find((plan) => plan.id === 'premium')!;
@@ -244,9 +250,61 @@ export default function PriceSimulatorPage() {
   const [chatStreaming, setChatStreaming] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
+  // ----- 保存モーダル -----
+  const [saveModalOpen, setSaveModalOpen] = useState(false);
+
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chatMessages]);
+
+  // localStorage から復元
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return;
+      const saved = JSON.parse(raw);
+      if (saved.hourlyRate !== undefined) setHourlyRate(saved.hourlyRate);
+      if (saved.toolCost !== undefined) setToolCost(saved.toolCost);
+      if (saved.clientCount !== undefined) setClientCount(saved.clientCount);
+      if (saved.contractMonths !== undefined) setContractMonths(saved.contractMonths);
+      if (saved.serviceState !== undefined) setServiceState(saved.serviceState);
+      if (saved.extraPages !== undefined) setExtraPages(saved.extraPages);
+      if (saved.extraPagePrice !== undefined) setExtraPagePrice(saved.extraPagePrice);
+      if (saved.extraRevisions !== undefined) setExtraRevisions(saved.extraRevisions);
+      if (saved.extraRevisionPrice !== undefined) setExtraRevisionPrice(saved.extraRevisionPrice);
+      if (saved.blogUnits !== undefined) setBlogUnits(saved.blogUnits);
+      if (saved.blogUnitPrice !== undefined) setBlogUnitPrice(saved.blogUnitPrice);
+      if (saved.consultingEnabled !== undefined) setConsultingEnabled(saved.consultingEnabled);
+    } catch {
+      // 破損データは無視
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const confirmSave = () => {
+    try {
+      localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify({
+          hourlyRate,
+          toolCost,
+          clientCount,
+          contractMonths,
+          serviceState,
+          extraPages,
+          extraPagePrice,
+          extraRevisions,
+          extraRevisionPrice,
+          blogUnits,
+          blogUnitPrice,
+          consultingEnabled,
+        }),
+      );
+    } catch {
+      // ストレージ容量超過等は無視
+    }
+    setSaveModalOpen(false);
+  };
 
   const hasHpPlanSelector = (serviceId: string) =>
     HP_INCLUDED_SERVICE_IDS.includes(serviceId as (typeof HP_INCLUDED_SERVICE_IDS)[number]);
@@ -654,6 +712,14 @@ export default function PriceSimulatorPage() {
             </Badge>
             <Badge color="green">縛り {contractMonths}ヶ月</Badge>
             <Badge color="amber">時給 ¥{fmt(hourlyRate)}</Badge>
+            <button
+              type="button"
+              onClick={() => setSaveModalOpen(true)}
+              className="flex items-center gap-1.5 rounded-full bg-indigo-600 px-3 py-1 text-xs font-semibold text-white shadow-sm transition hover:bg-indigo-700 active:scale-95"
+            >
+              <Save className="h-3.5 w-3.5" />
+              保存
+            </button>
           </div>
         </header>
 
@@ -1591,6 +1657,37 @@ export default function PriceSimulatorPage() {
           Price &amp; Profit Simulator Prototype ・ 入力値はリアルタイムに反映されます
         </footer>
 
+        {/* ===== 保存確認モーダル ===== */}
+        {saveModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+            <div className="w-80 rounded-2xl bg-white p-6 shadow-2xl">
+              <div className="mb-1 flex items-center gap-2 text-base font-bold text-slate-900">
+                <Save className="h-5 w-5 text-indigo-500" />
+                保存しますか？
+              </div>
+              <p className="mb-5 text-xs text-slate-500">
+                現在の入力内容をブラウザに保存します。次回アクセス時に自動で復元されます。
+              </p>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setSaveModalOpen(false)}
+                  className="flex-1 rounded-xl border border-slate-200 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50"
+                >
+                  キャンセル
+                </button>
+                <button
+                  type="button"
+                  onClick={confirmSave}
+                  className="flex-1 rounded-xl bg-indigo-600 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700"
+                >
+                  保存する
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* ===== フローティングチャットボタン ===== */}
         <button
           type="button"
@@ -1822,7 +1919,7 @@ function NumberField({
           value={display}
           step={step}
           onChange={(e) => {
-            const raw = e.target.value;
+            const raw = toHalfWidth(e.target.value);
             setDisplay(raw);
             const n = parseFloat(raw);
             if (!Number.isNaN(n)) {
@@ -1836,9 +1933,8 @@ function NumberField({
             }
           }}
           onBlur={() => {
-            const n = parseFloat(display);
+            const n = parseFloat(toHalfWidth(display));
             if (Number.isNaN(n)) {
-              // 不正な入力はリセット
               setDisplay(String(value));
             } else {
               const clamped =
