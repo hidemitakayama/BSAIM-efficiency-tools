@@ -613,9 +613,9 @@ export default function PriceSimulatorPage() {
           <button
             type="button"
             onClick={() => setSaveModalOpen(true)}
-            className="shrink-0 flex items-center gap-1.5 rounded-full bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-indigo-700 active:scale-95"
+            className="shrink-0 flex items-center gap-2 rounded-full bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700 active:scale-95"
           >
-            <Save className="h-3.5 w-3.5" />
+            <Save className="h-4 w-4" />
             <span>保存</span>
           </button>
         </header>
