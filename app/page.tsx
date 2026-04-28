@@ -1367,6 +1367,14 @@ function NumberField({
           inputMode="decimal"
           value={display}
           step={step}
+          onFocus={(e) => {
+            if (display === '0') {
+              setDisplay('');
+              e.target.select();
+            } else {
+              e.target.select();
+            }
+          }}
           onChange={(e) => {
             const raw = toHalfWidth(e.target.value);
             setDisplay(raw);
@@ -1378,8 +1386,9 @@ function NumberField({
           }}
           onBlur={() => {
             const n = parseFloat(toHalfWidth(display));
-            if (Number.isNaN(n)) {
-              setDisplay(String(value));
+            if (Number.isNaN(n) || display.trim() === '') {
+              setDisplay('0');
+              onChange(min !== undefined && 0 < min ? min : 0);
             } else {
               const clamped = min !== undefined && n < min ? min : max !== undefined && n > max ? max : n;
               setDisplay(String(clamped));
