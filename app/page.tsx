@@ -764,7 +764,7 @@ export default function PriceSimulatorPage() {
                                 <div className="text-[12px] font-semibold text-slate-900">
                                   独自オプション
                                   {isHp && currentPlan && (
-                                    <span className="ml-1.5 rounded-full bg-indigo-100 px-1.5 py-0.5 text-[9px] font-bold text-indigo-700">{currentPlan.name}専用</span>
+                                    <span className="ml-1.5 rounded-full bg-indigo-100 px-1.5 py-0.5 text-[9px] font-bold text-indigo-700">{currentPlan.name}</span>
                                   )}
                                 </div>
                                 <div className="text-[10px] text-slate-400">カスタムの初期/月額アップセルを追加</div>
@@ -777,7 +777,7 @@ export default function PriceSimulatorPage() {
 
                           {planCustomOpts.length === 0 ? (
                             <div className="rounded-md border border-dashed border-slate-300 bg-slate-50 py-3 text-center text-[11px] text-slate-400">
-                              {isHp && currentPlan ? `${currentPlan.name}プラン専用の独自オプションを追加` : 'このサービス専用の独自オプションを追加'}
+                              {isHp && currentPlan ? `${currentPlan.name}プランの独自オプションを追加` : 'このサービスの独自オプションを追加'}
                             </div>
                           ) : (
                             <div className="space-y-2">
@@ -822,7 +822,7 @@ export default function PriceSimulatorPage() {
                                 <div className="text-[12px] font-semibold text-slate-900">
                                   従量課金メニュー
                                   {isHp && currentPlan && (
-                                    <span className="ml-1.5 rounded-full bg-indigo-100 px-1.5 py-0.5 text-[9px] font-bold text-indigo-700">{currentPlan.name}専用</span>
+                                    <span className="ml-1.5 rounded-full bg-indigo-100 px-1.5 py-0.5 text-[9px] font-bold text-indigo-700">{currentPlan.name}</span>
                                   )}
                                 </div>
                                 <div className="text-[10px] text-slate-400">単価 × 月間回数で月額売上に加算</div>
@@ -835,7 +835,7 @@ export default function PriceSimulatorPage() {
 
                           {planPerUseOpts.length === 0 ? (
                             <div className="rounded-md border border-dashed border-slate-300 bg-slate-50 py-3 text-center text-[11px] text-slate-400">
-                              {isHp && currentPlan ? `${currentPlan.name}プラン専用の従量課金を追加` : 'このサービス専用の従量課金を追加'}
+                              {isHp && currentPlan ? `${currentPlan.name}プランの従量課金を追加` : 'このサービスの従量課金を追加'}
                             </div>
                           ) : (
                             <div className="space-y-2">
