@@ -885,11 +885,11 @@ export default function PriceSimulatorPage() {
                                   <div className="flex items-end gap-2">
                                     <div className="flex-1">
                                       <label className="mb-0.5 block text-[10px] font-medium text-slate-500">初期 (円)</label>
-                                      <input type="number" value={o.initial} onChange={(e) => updateCustomOption(s.id, o.id, { initial: Number(e.target.value) || 0 })} className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm tabular-nums focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500" />
+                                      <InlineNumInput value={o.initial} onChange={(v) => updateCustomOption(s.id, o.id, { initial: v })} className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm tabular-nums focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500" />
                                     </div>
                                     <div className="flex-1">
                                       <label className="mb-0.5 block text-[10px] font-medium text-slate-500">月額 (円)</label>
-                                      <input type="number" value={o.monthly} onChange={(e) => updateCustomOption(s.id, o.id, { monthly: Number(e.target.value) || 0 })} className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm tabular-nums focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500" />
+                                      <InlineNumInput value={o.monthly} onChange={(v) => updateCustomOption(s.id, o.id, { monthly: v })} className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm tabular-nums focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500" />
                                     </div>
                                     <button type="button" onClick={() => removeCustomOption(s.id, o.id)} className="shrink-0 rounded-md p-2 text-slate-400 transition hover:bg-rose-50 hover:text-rose-600" aria-label="削除">
                                       <Trash2 className="h-4 w-4" />
@@ -945,11 +945,11 @@ export default function PriceSimulatorPage() {
                                     <div className="flex items-end gap-2">
                                       <div className="flex-1">
                                         <label className="mb-0.5 block text-[10px] font-medium text-slate-500">単価 (円)</label>
-                                        <input type="number" value={opt.unitPrice} onChange={(e) => updatePerUseOption(s.id, opt.id, { unitPrice: Number(e.target.value) || 0 })} className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm tabular-nums focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500" />
+                                        <InlineNumInput value={opt.unitPrice} onChange={(v) => updatePerUseOption(s.id, opt.id, { unitPrice: v })} className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm tabular-nums focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500" />
                                       </div>
                                       <div className="flex-1">
                                         <label className="mb-0.5 block text-[10px] font-medium text-slate-500">月間回数</label>
-                                        <input type="number" value={opt.monthlyCount} onChange={(e) => updatePerUseOption(s.id, opt.id, { monthlyCount: Number(e.target.value) || 0 })} className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm tabular-nums focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500" />
+                                        <InlineNumInput value={opt.monthlyCount} onChange={(v) => updatePerUseOption(s.id, opt.id, { monthlyCount: v })} className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm tabular-nums focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500" />
                                       </div>
                                       <div className="shrink-0 rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1.5 text-right text-sm font-bold tabular-nums text-emerald-700">
                                         ¥{fmt(monthly)}
@@ -1404,6 +1404,42 @@ function NumberField({
       </div>
       {hint && <div className="mt-1 text-[10px] text-slate-400">{hint}</div>}
     </div>
+  );
+}
+
+function InlineNumInput({ value, onChange, className }: { value: number; onChange: (v: number) => void; className?: string }) {
+  const [display, setDisplay] = useState(String(value));
+  const prevRef = React.useRef(value);
+  if (prevRef.current !== value && parseFloat(display) !== value) {
+    prevRef.current = value;
+    setDisplay(String(value));
+  } else {
+    prevRef.current = value;
+  }
+  return (
+    <input
+      type="text"
+      inputMode="decimal"
+      value={display}
+      onFocus={(e) => { if (display === '0') { setDisplay(''); } e.target.select(); }}
+      onChange={(e) => {
+        const raw = toHalfWidth(e.target.value);
+        setDisplay(raw);
+        const n = parseFloat(raw);
+        if (!Number.isNaN(n)) onChange(n);
+      }}
+      onBlur={() => {
+        const n = parseFloat(toHalfWidth(display));
+        if (Number.isNaN(n) || display.trim() === '') {
+          setDisplay('0');
+          onChange(0);
+        } else {
+          setDisplay(String(n));
+          onChange(n);
+        }
+      }}
+      className={className}
+    />
   );
 }
 
