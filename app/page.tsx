@@ -291,6 +291,7 @@ export default function PriceSimulatorPage() {
   // ----- 保存・読み込みモーダル -----
   const [saveModalOpen, setSaveModalOpen] = useState(false);
   const [saveName, setSaveName] = useState('');
+  const [saveNameComposing, setSaveNameComposing] = useState(false);
   const [snapshots, setSnapshots] = useState<Snapshot[]>([]);
   const [loadModalOpen, setLoadModalOpen] = useState(false);
 
@@ -1176,7 +1177,9 @@ export default function PriceSimulatorPage() {
                 type="text"
                 value={saveName}
                 onChange={(e) => setSaveName(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && confirmSave()}
+                onCompositionStart={() => setSaveNameComposing(true)}
+                onCompositionEnd={() => setSaveNameComposing(false)}
+                onKeyDown={(e) => e.key === 'Enter' && !saveNameComposing && confirmSave()}
                 placeholder={`スナップショット ${snapshots.length + 1}`}
                 className="mb-4 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
                 autoFocus
