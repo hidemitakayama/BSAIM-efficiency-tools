@@ -904,9 +904,6 @@ export default function PriceSimulatorPage() {
                   </label>
                 </div>
 
-                <div className="rounded-md border border-dashed border-slate-300 bg-slate-50 py-3 text-center text-[11px] text-slate-400">
-                  HP制作の追加オプション（追加ページ・超過修正・ブログ移管・独自オプション）は各サービスカード内で設定できます
-                </div>
               </div>
             </Section>
           </div>
