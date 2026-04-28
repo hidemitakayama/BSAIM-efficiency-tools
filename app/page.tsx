@@ -156,23 +156,40 @@ type ServiceState = {
   enabled: boolean;
   initialHours: number;
   monthlyHours: number;
+  hpPlan?: HpPlanId;
+  customOptions: CustomOption[];
+  nextCustomId: number;
+  perUseOptions: PerUseOption[];
+  nextPerUseId: number;
 };
+
+type HpPlanPriceMap = Record<HpPlanId, number>;
 
 type CustomOption = {
   id: number;
   name: string;
-  initial: number;
-  monthly: number;
+  initial: number | HpPlanPriceMap;
+  monthly: number | HpPlanPriceMap;
 };
 
 type PerUseOption = {
   id: number;
   name: string;
-  unitPrice: number;
+  unitPrice: number | HpPlanPriceMap;
   monthlyCount: number;
 };
 
 type ChatMessage = { role: 'user' | 'assistant'; content: string };
+
+const HP_INCLUDED_SERVICE_IDS = ['hp', 'full', 'hp_sns', 'hp_meo'] as const;
+const HP_BUNDLE_SERVICE_IDS = ['full', 'hp_sns', 'hp_meo'] as const;
+const PREMIUM_HP_PLAN = HP_PLANS.find((plan) => plan.id === 'premium')!;
+const createHpPlanPriceMap = (value = 0): HpPlanPriceMap => ({
+  minimal: value,
+  premium: value,
+  pro: value,
+  max: value,
+});
 
 // =====================================================
 // メインコンポーネント
@@ -192,6 +209,13 @@ export default function PriceSimulatorPage() {
         enabled: s.id === 'hp',
         initialHours: s.defaultInitialHours,
         monthlyHours: s.defaultMonthlyHours,
+        hpPlan: HP_INCLUDED_SERVICE_IDS.includes(s.id as (typeof HP_INCLUDED_SERVICE_IDS)[number])
+          ? 'premium'
+          : undefined,
+        customOptions: [],
+        nextCustomId: 1,
+        perUseOptions: [],
+        nextPerUseId: 1,
       };
       return acc;
     }, {}),
@@ -208,15 +232,6 @@ export default function PriceSimulatorPage() {
   const [extraRevisionPrice, setExtraRevisionPrice] = useState(3_000);
   const [blogUnits, setBlogUnits] = useState(1); // 20記事 = 1単位 (初回0円)
   const [blogUnitPrice, setBlogUnitPrice] = useState(3_500);
-  const [customOptions, setCustomOptions] = useState<CustomOption[]>([]);
-  const [nextCustomId, setNextCustomId] = useState(1);
-
-  // ----- 従量課金オプション -----
-  const [perUseOptions, setPerUseOptions] = useState<PerUseOption[]>([]);
-  const [nextPerUseId, setNextPerUseId] = useState(1);
-
-  // ----- HP プラン -----
-  const [hpPlan, setHpPlan] = useState<HpPlanId>('premium');
 
   // ----- コンサルティング -----
   const [consultingEnabled, setConsultingEnabled] = useState(false);
@@ -233,32 +248,106 @@ export default function PriceSimulatorPage() {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chatMessages]);
 
-  const addCustomOption = () => {
-    setCustomOptions((prev) => [
-      ...prev,
-      { id: nextCustomId, name: '', initial: 0, monthly: 0 },
-    ]);
-    setNextCustomId((n) => n + 1);
-  };
-  const updateCustomOption = (id: number, patch: Partial<CustomOption>) => {
-    setCustomOptions((prev) => prev.map((o) => (o.id === id ? { ...o, ...patch } : o)));
-  };
-  const removeCustomOption = (id: number) => {
-    setCustomOptions((prev) => prev.filter((o) => o.id !== id));
+  const hasHpPlanSelector = (serviceId: string) =>
+    HP_INCLUDED_SERVICE_IDS.includes(serviceId as (typeof HP_INCLUDED_SERVICE_IDS)[number]);
+  const isHpBundleService = (serviceId: string) =>
+    HP_BUNDLE_SERVICE_IDS.includes(serviceId as (typeof HP_BUNDLE_SERVICE_IDS)[number]);
+  const getAvailableHpPlans = (serviceId: string) =>
+    isHpBundleService(serviceId)
+      ? HP_PLANS.filter((plan) => plan.id !== 'minimal')
+      : HP_PLANS;
+  const getPriceByPlan = (
+    value: number | HpPlanPriceMap,
+    planId: HpPlanId | undefined,
+  ) => {
+    if (typeof value === 'number') return value;
+    return value[planId ?? 'premium'] ?? 0;
   };
 
-  const addPerUseOption = () => {
-    setPerUseOptions((prev) => [
+  const addCustomOption = (serviceId: string) => {
+    setServiceState((prev) => {
+      const st = prev[serviceId];
+      const usePlanPricing = hasHpPlanSelector(serviceId);
+      return {
+        ...prev,
+        [serviceId]: {
+          ...st,
+          customOptions: [
+            ...st.customOptions,
+            {
+              id: st.nextCustomId,
+              name: '',
+              initial: usePlanPricing ? createHpPlanPriceMap() : 0,
+              monthly: usePlanPricing ? createHpPlanPriceMap() : 0,
+            },
+          ],
+          nextCustomId: st.nextCustomId + 1,
+        },
+      };
+    });
+  };
+  const updateCustomOption = (serviceId: string, id: number, patch: Partial<CustomOption>) => {
+    setServiceState((prev) => ({
       ...prev,
-      { id: nextPerUseId, name: '', unitPrice: 0, monthlyCount: 0 },
-    ]);
-    setNextPerUseId((n) => n + 1);
+      [serviceId]: {
+        ...prev[serviceId],
+        customOptions: prev[serviceId].customOptions.map((o) =>
+          o.id === id ? { ...o, ...patch } : o,
+        ),
+      },
+    }));
   };
-  const updatePerUseOption = (id: number, patch: Partial<PerUseOption>) => {
-    setPerUseOptions((prev) => prev.map((o) => (o.id === id ? { ...o, ...patch } : o)));
+  const removeCustomOption = (serviceId: string, id: number) => {
+    setServiceState((prev) => ({
+      ...prev,
+      [serviceId]: {
+        ...prev[serviceId],
+        customOptions: prev[serviceId].customOptions.filter((o) => o.id !== id),
+      },
+    }));
   };
-  const removePerUseOption = (id: number) => {
-    setPerUseOptions((prev) => prev.filter((o) => o.id !== id));
+
+  const addPerUseOption = (serviceId: string) => {
+    setServiceState((prev) => {
+      const st = prev[serviceId];
+      const usePlanPricing = hasHpPlanSelector(serviceId);
+      return {
+        ...prev,
+        [serviceId]: {
+          ...st,
+          perUseOptions: [
+            ...st.perUseOptions,
+            {
+              id: st.nextPerUseId,
+              name: '',
+              unitPrice: usePlanPricing ? createHpPlanPriceMap() : 0,
+              monthlyCount: 0,
+            },
+          ],
+          nextPerUseId: st.nextPerUseId + 1,
+        },
+      };
+    });
+  };
+  const updatePerUseOption = (serviceId: string, id: number, patch: Partial<PerUseOption>) => {
+    setServiceState((prev) => ({
+      ...prev,
+      [serviceId]: {
+        ...prev[serviceId],
+        perUseOptions: prev[serviceId].perUseOptions.map((o) =>
+          o.id === id ? { ...o, ...patch } : o,
+        ),
+      },
+    }));
+  };
+  const removePerUseOption = (serviceId: string, id: number) => {
+    setServiceState((prev) => ({
+      ...prev,
+      [serviceId]: {
+        ...prev[serviceId],
+        perUseOptions: prev[serviceId].perUseOptions.filter((o) => o.id !== id),
+      },
+    }));
   };
 
   // =====================================================
@@ -269,9 +358,16 @@ export default function PriceSimulatorPage() {
 
     // HP プランの料金を動的に取得
     const getServiceFees = (s: ServiceDef) => {
-      if (s.id === 'hp') {
-        const plan = HP_PLANS.find((p) => p.id === hpPlan)!;
-        return { initialFee: plan.initialFee, monthlyFee: plan.monthlyFee };
+      if (hasHpPlanSelector(s.id)) {
+        const selectedPlanId = serviceState[s.id]?.hpPlan ?? 'premium';
+        const plan = HP_PLANS.find((p) => p.id === selectedPlanId)!;
+        if (s.id === 'hp') {
+          return { initialFee: plan.initialFee, monthlyFee: plan.monthlyFee };
+        }
+        return {
+          initialFee: s.initialFee + (plan.initialFee - PREMIUM_HP_PLAN.initialFee),
+          monthlyFee: s.monthlyFee + (plan.monthlyFee - PREMIUM_HP_PLAN.monthlyFee),
+        };
       }
       return { initialFee: s.initialFee, monthlyFee: s.monthlyFee };
     };
@@ -295,10 +391,35 @@ export default function PriceSimulatorPage() {
     const extraRevisionsRevenue = extraRevisions * extraRevisionPrice;
     const blogChargeableUnits = Math.max(0, blogUnits - 1); // 初回1単位は無料
     const blogRevenue = blogChargeableUnits * blogUnitPrice;
-    const customInitialRevenue = customOptions.reduce((s, o) => s + (o.initial || 0), 0);
-    const customMonthlyRevenue = customOptions.reduce((s, o) => s + (o.monthly || 0), 0);
-    const perUseMonthlyRevenue = perUseOptions.reduce(
-      (sum, option) => sum + (option.unitPrice || 0) * (option.monthlyCount || 0),
+    const customInitialRevenue = enabledServices.reduce(
+      (sum, s) =>
+        sum +
+        serviceState[s.id].customOptions.reduce(
+          (optionSum, o) =>
+            optionSum + getPriceByPlan(o.initial, serviceState[s.id].hpPlan),
+          0,
+        ),
+      0,
+    );
+    const customMonthlyRevenue = enabledServices.reduce(
+      (sum, s) =>
+        sum +
+        serviceState[s.id].customOptions.reduce(
+          (optionSum, o) =>
+            optionSum + getPriceByPlan(o.monthly, serviceState[s.id].hpPlan),
+          0,
+        ),
+      0,
+    );
+    const perUseMonthlyRevenue = enabledServices.reduce(
+      (sum, s) =>
+        sum +
+        serviceState[s.id].perUseOptions.reduce(
+          (optionSum, option) =>
+            optionSum +
+            getPriceByPlan(option.unitPrice, serviceState[s.id].hpPlan) * (option.monthlyCount || 0),
+          0,
+        ),
       0,
     );
 
@@ -394,6 +515,7 @@ export default function PriceSimulatorPage() {
       customInitialRevenue,
       customMonthlyRevenue,
       perUseMonthlyRevenue,
+      getServiceFees,
       cumulativeData,
       breakdownData,
     };
@@ -409,10 +531,8 @@ export default function PriceSimulatorPage() {
     extraRevisionPrice,
     blogUnits,
     blogUnitPrice,
-    customOptions,
-    perUseOptions,
-    hpPlan,
     consultingEnabled,
+    hasHpPlanSelector,
   ]);
 
   // =====================================================
@@ -434,14 +554,15 @@ export default function PriceSimulatorPage() {
       calc.enabledServices.length > 0
         ? calc.enabledServices
             .map((s) => {
-              const fees = s.id === 'hp' ? HP_PLANS.find(p => p.id === hpPlan)! : s;
-              return `${s.name}${s.id === 'hp' ? `(${HP_PLANS.find(p => p.id === hpPlan)!.name})` : ''}（初期¥${fmt(fees.initialFee)} / 月額¥${fmt(fees.monthlyFee)}）`;
+              const fees = calc.getServiceFees(s);
+              const selectedPlan = serviceState[s.id]?.hpPlan;
+              return `${s.name}${selectedPlan ? `(${HP_PLANS.find((p) => p.id === selectedPlan)!.name})` : ''}（初期¥${fmt(fees.initialFee)} / 月額¥${fmt(fees.monthlyFee)}）`;
             })
             .join(', ')
         : 'なし',
       ``,
       `■ 追加オプション`,
-      `コンサルティング: ${consultingEnabled ? `ON（¥${fmt(consultingMonthly)}/月）` : 'OFF'} / 追加ページ: ${extraPages}P（¥${fmt(calc.extraPagesRevenue)}） / 超過修正: ${extraRevisions}回（¥${fmt(calc.extraRevisionsRevenue)}） / ブログ移管: ${blogUnits}単位（¥${fmt(calc.blogRevenue)}） / 従量課金: ${perUseOptions.length > 0 ? `¥${fmt(calc.perUseMonthlyRevenue)}/月` : 'なし'}`,
+      `コンサルティング: ${consultingEnabled ? `ON（¥${fmt(consultingMonthly)}/月）` : 'OFF'} / 追加ページ: ${extraPages}P（¥${fmt(calc.extraPagesRevenue)}） / 超過修正: ${extraRevisions}回（¥${fmt(calc.extraRevisionsRevenue)}） / ブログ移管: ${blogUnits}単位（¥${fmt(calc.blogRevenue)}） / 従量課金: ${calc.perUseMonthlyRevenue > 0 ? `¥${fmt(calc.perUseMonthlyRevenue)}/月` : 'なし'}`,
       ``,
       `■ シミュレーション結果`,
       `初期: 売上¥${fmt(calc.initialRevenue)} / 原価¥${fmt(calc.initialLaborCost)} / 粗利¥${fmt(calc.initialProfit)} / 利益率${fmtPct(calc.initialMargin)}`,
@@ -639,30 +760,25 @@ export default function PriceSimulatorPage() {
                             )}
                           </div>
                           <div className="mt-0.5 text-xs text-slate-500">
-                            {s.id === 'hp' ? (
-                              <>
-                                初期 ¥{fmt(HP_PLANS.find(p => p.id === hpPlan)!.initialFee)} / 月額 ¥{fmt(HP_PLANS.find(p => p.id === hpPlan)!.monthlyFee)}
-                                {s.description && ` ・ ${s.description}`}
-                              </>
-                            ) : (
-                              <>
-                                初期 ¥{fmt(s.initialFee)} / 月額 ¥{fmt(s.monthlyFee)}
-                                {s.description && ` ・ ${s.description}`}
-                              </>
-                            )}
+                            <>
+                              初期 ¥{fmt(calc.getServiceFees(s).initialFee)} / 月額 ¥{fmt(calc.getServiceFees(s).monthlyFee)}
+                              {hasHpPlanSelector(s.id) &&
+                                ` ・ HP ${HP_PLANS.find((p) => p.id === st.hpPlan)!.name}`}
+                              {s.description && ` ・ ${s.description}`}
+                            </>
                           </div>
                         </div>
                       </label>
 
-                      {st.enabled && s.id === 'hp' && (
+                      {st.enabled && hasHpPlanSelector(s.id) && (
                         <div className="mt-3 grid grid-cols-4 gap-1.5 border-t border-indigo-100 pt-3">
-                          {HP_PLANS.map((plan) => (
+                          {getAvailableHpPlans(s.id).map((plan) => (
                             <button
                               key={plan.id}
                               type="button"
-                              onClick={() => setHpPlan(plan.id)}
+                              onClick={() => updateService(s.id, { hpPlan: plan.id })}
                               className={`rounded-lg px-1.5 py-2 text-center transition ${
-                                hpPlan === plan.id
+                                st.hpPlan === plan.id
                                   ? 'bg-indigo-600 text-white shadow'
                                   : 'bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50'
                               }`}
@@ -670,15 +786,15 @@ export default function PriceSimulatorPage() {
                               <div className="text-[11px] font-semibold leading-tight">
                                 {plan.name}
                                 {plan.badge && (
-                                  <span className={`ml-1 rounded-full px-1 py-0.5 text-[8px] font-bold ${hpPlan === plan.id ? 'bg-white/20 text-white' : 'bg-amber-100 text-amber-700'}`}>
+                                  <span className={`ml-1 rounded-full px-1 py-0.5 text-[8px] font-bold ${st.hpPlan === plan.id ? 'bg-white/20 text-white' : 'bg-amber-100 text-amber-700'}`}>
                                     {plan.badge}
                                   </span>
                                 )}
                               </div>
-                              <div className={`mt-0.5 text-[9px] ${hpPlan === plan.id ? 'text-indigo-100' : 'text-slate-400'}`}>
+                              <div className={`mt-0.5 text-[9px] ${st.hpPlan === plan.id ? 'text-indigo-100' : 'text-slate-400'}`}>
                                 {plan.initialFee > 0 ? `初期¥${(plan.initialFee/10000).toFixed(0)}万` : '初期¥0'}
                               </div>
-                              <div className={`text-[10px] font-bold ${hpPlan === plan.id ? 'text-white' : 'text-slate-700'}`}>
+                              <div className={`text-[10px] font-bold ${st.hpPlan === plan.id ? 'text-white' : 'text-slate-700'}`}>
                                 ¥{plan.monthlyFee.toLocaleString()}/月
                               </div>
                             </button>
@@ -847,208 +963,328 @@ export default function PriceSimulatorPage() {
                   />
                 </AddonRow>
 
-                {/* 独自オプション */}
-                <div className="rounded-lg border border-slate-200 bg-slate-50/50 p-3">
-                  <div className="mb-3 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className="rounded-md bg-purple-100 p-1.5 text-purple-600">
-                        <Sparkles className="h-4 w-4" />
-                      </span>
-                      <div>
-                        <div className="text-sm font-semibold text-slate-900">
-                          独自オプション
-                        </div>
-                        <div className="text-[10px] text-slate-400">
-                          カスタムの初期/月額アップセルを自由に追加
-                        </div>
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={addCustomOption}
-                      className="flex items-center gap-1 rounded-md bg-white px-2.5 py-1.5 text-xs font-medium text-indigo-600 shadow-sm ring-1 ring-slate-200 transition hover:bg-indigo-50"
-                    >
-                      <Plus className="h-3.5 w-3.5" /> 追加
-                    </button>
+                {calc.enabledServices.length === 0 ? (
+                  <div className="rounded-lg border border-dashed border-slate-300 bg-white py-6 text-center text-sm text-slate-400">
+                    サービスを選択すると、サービスごとの追加オプションを保存できます
                   </div>
-
-                  {customOptions.length === 0 ? (
-                    <div className="rounded-md border border-dashed border-slate-300 bg-white py-4 text-center text-xs text-slate-400">
-                      オプションを追加してください
-                    </div>
-                  ) : (
-                    <div className="space-y-2">
-                      {customOptions.map((o) => (
-                        <div
-                          key={o.id}
-                          className="grid grid-cols-12 items-end gap-2 rounded-md bg-white p-2 ring-1 ring-slate-200"
-                        >
-                          <div className="col-span-12 sm:col-span-4">
-                            <div className="h-full rounded-lg border border-slate-200 bg-slate-50/40 p-2">
-                              <label className="mb-1 flex items-center gap-1.5 text-[11px] font-medium text-slate-600">
-                                名称
-                              </label>
-                              <input
-                                value={o.name}
-                                onChange={(e) =>
-                                  updateCustomOption(o.id, { name: e.target.value })
-                                }
-                                placeholder="例: SEO記事制作"
-                                className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                              />
+                ) : (
+                  calc.enabledServices.map((service) => {
+                    const st = serviceState[service.id];
+                    const selectedPlan = st.hpPlan
+                      ? HP_PLANS.find((plan) => plan.id === st.hpPlan)?.name
+                      : null;
+                    return (
+                      <div
+                        key={service.id}
+                        className="rounded-xl border border-slate-200 bg-slate-50/50 p-3"
+                      >
+                        <div className="mb-3 flex items-center justify-between gap-2">
+                          <div>
+                            <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
+                              {service.name}
+                              {selectedPlan && (
+                                <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-[10px] font-bold text-indigo-700">
+                                  HP {selectedPlan}
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-[10px] text-slate-400">
+                              このサービスを再選択しても、追加オプション設定を保持します
+                              {hasHpPlanSelector(service.id) &&
+                                '。HPプラン別の価格も設定できます'}
                             </div>
                           </div>
-                          <div className="col-span-5 sm:col-span-3">
-                            <NumberField
-                              compact
-                              label="初期"
-                              suffix="円"
-                              value={o.initial}
-                              onChange={(v) =>
-                                updateCustomOption(o.id, {
-                                  initial: v,
-                                })
-                              }
-                              min={0}
-                            />
-                          </div>
-                          <div className="col-span-5 sm:col-span-3">
-                            <NumberField
-                              compact
-                              label="月額"
-                              suffix="円"
-                              value={o.monthly}
-                              onChange={(v) =>
-                                updateCustomOption(o.id, {
-                                  monthly: v,
-                                })
-                              }
-                              min={0}
-                            />
-                          </div>
-                          <div className="col-span-2 sm:col-span-2 flex justify-end">
-                            <button
-                              type="button"
-                              onClick={() => removeCustomOption(o.id)}
-                              className="rounded-md p-2 text-slate-400 transition hover:bg-rose-50 hover:text-rose-600"
-                              aria-label="削除"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </button>
-                          </div>
                         </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
 
-                {/* 従量課金オプション */}
-                <div className="rounded-lg border border-slate-200 bg-slate-50/50 p-3">
-                  <div className="mb-3 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className="rounded-md bg-purple-100 p-1.5 text-purple-600">
-                        <BarChart3 className="h-4 w-4" />
-                      </span>
-                      <div>
-                        <div className="text-sm font-semibold text-slate-900">
-                          従量課金メニュー
-                        </div>
-                        <div className="text-[10px] text-slate-400">
-                          単価 × 月間回数で月額売上に加算
-                        </div>
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={addPerUseOption}
-                      className="flex items-center gap-1 rounded-md bg-white px-2.5 py-1.5 text-xs font-medium text-indigo-600 shadow-sm ring-1 ring-slate-200 transition hover:bg-indigo-50"
-                    >
-                      <Plus className="h-3.5 w-3.5" /> 追加
-                    </button>
-                  </div>
-
-                  {perUseOptions.length === 0 ? (
-                    <div className="rounded-md border border-dashed border-slate-300 bg-white py-4 text-center text-xs text-slate-400">
-                      回数課金のメニューを追加してください
-                    </div>
-                  ) : (
-                    <div className="space-y-2">
-                      {perUseOptions.map((option) => (
-                        <div
-                          key={option.id}
-                          className="grid grid-cols-12 items-end gap-2 rounded-md bg-white p-2 ring-1 ring-slate-200"
-                        >
-                          <div className="col-span-12 sm:col-span-4">
-                            <div className="h-full rounded-lg border border-slate-200 bg-slate-50/40 p-2">
-                              <label className="mb-1 flex items-center gap-1.5 text-[11px] font-medium text-slate-600">
-                                名称
-                              </label>
-                              <input
-                                value={option.name}
-                                onChange={(e) =>
-                                  updatePerUseOption(option.id, { name: e.target.value })
-                                }
-                                placeholder="例: AI記事作成"
-                                className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                              />
-                            </div>
-                          </div>
-                          <div className="col-span-4 sm:col-span-2">
-                            <NumberField
-                              compact
-                              label="単価"
-                              suffix="円"
-                              value={option.unitPrice}
-                              onChange={(v) =>
-                                updatePerUseOption(option.id, {
-                                  unitPrice: v,
-                                })
-                              }
-                              min={0}
-                            />
-                          </div>
-                          <div className="col-span-4 sm:col-span-2">
-                            <NumberField
-                              compact
-                              label="月間回数"
-                              suffix="回"
-                              value={option.monthlyCount}
-                              onChange={(v) =>
-                                updatePerUseOption(option.id, {
-                                  monthlyCount: v,
-                                })
-                              }
-                              min={0}
-                            />
-                          </div>
-                          <div className="col-span-4 sm:col-span-2">
-                            <div className="h-full rounded-lg border border-slate-200 bg-slate-50/40 p-2">
-                              <label className="mb-1 flex items-center gap-1.5 text-[11px] font-medium text-slate-600">
-                                月額加算
-                              </label>
-                              <div className="rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1.5 text-right text-sm font-bold tabular-nums text-emerald-700">
-                                ¥{fmt(option.unitPrice * option.monthlyCount)}
+                        <div className="space-y-3">
+                          <div className="rounded-lg border border-slate-200 bg-white p-3">
+                            <div className="mb-3 flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <span className="rounded-md bg-purple-100 p-1.5 text-purple-600">
+                                  <Sparkles className="h-4 w-4" />
+                                </span>
+                                <div>
+                                  <div className="text-sm font-semibold text-slate-900">
+                                    独自オプション
+                                  </div>
+                                  <div className="text-[10px] text-slate-400">
+                                    カスタムの初期/月額アップセルを自由に追加
+                                  </div>
+                                </div>
                               </div>
+                              <button
+                                type="button"
+                                onClick={() => addCustomOption(service.id)}
+                                className="flex items-center gap-1 rounded-md bg-white px-2.5 py-1.5 text-xs font-medium text-indigo-600 shadow-sm ring-1 ring-slate-200 transition hover:bg-indigo-50"
+                              >
+                                <Plus className="h-3.5 w-3.5" /> 追加
+                              </button>
                             </div>
+
+                            {st.customOptions.length === 0 ? (
+                              <div className="rounded-md border border-dashed border-slate-300 bg-slate-50 py-4 text-center text-xs text-slate-400">
+                                このサービス専用の独自オプションを追加してください
+                              </div>
+                            ) : (
+                              <div className="space-y-2">
+                                {st.customOptions.map((o) => (
+                                  <div
+                                    key={o.id}
+                                    className="grid grid-cols-12 items-stretch gap-2 rounded-md bg-white p-2 ring-1 ring-slate-200"
+                                  >
+                                    <div className="col-span-12 sm:col-span-4">
+                                      <div className="flex h-full min-h-[132px] flex-col justify-end rounded-lg border border-slate-200 bg-slate-50/40 p-2">
+                                        <label className="mb-1 flex items-center gap-1.5 text-[11px] font-medium text-slate-600">
+                                          名称
+                                        </label>
+                                        <input
+                                          value={o.name}
+                                          onChange={(e) =>
+                                            updateCustomOption(service.id, o.id, {
+                                              name: e.target.value,
+                                            })
+                                          }
+                                          placeholder="例: SEO記事制作"
+                                          className="w-full rounded-md border border-slate-300 bg-white px-2 py-3 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                        />
+                                      </div>
+                                    </div>
+                                    <div className="col-span-5 sm:col-span-3">
+                                      {hasHpPlanSelector(service.id) ? (
+                                        <PlanPriceField
+                                          label="初期"
+                                          prices={o.initial as HpPlanPriceMap}
+                                          plans={getAvailableHpPlans(service.id)}
+                                          onChange={(planId, value) =>
+                                            updateCustomOption(service.id, o.id, {
+                                              initial: {
+                                                ...(o.initial as HpPlanPriceMap),
+                                                [planId]: value,
+                                              },
+                                            })
+                                          }
+                                        />
+                                      ) : (
+                                        <NumberField
+                                          compact
+                                          label="初期"
+                                          suffix="円"
+                                          value={o.initial as number}
+                                          onChange={(v) =>
+                                            updateCustomOption(service.id, o.id, { initial: v })
+                                          }
+                                          min={0}
+                                          inputClassName="py-3"
+                                          containerClassName="h-full min-h-[132px] flex flex-col justify-end"
+                                        />
+                                      )}
+                                    </div>
+                                    <div className="col-span-5 sm:col-span-3">
+                                      {hasHpPlanSelector(service.id) ? (
+                                        <PlanPriceField
+                                          label="月額"
+                                          prices={o.monthly as HpPlanPriceMap}
+                                          plans={getAvailableHpPlans(service.id)}
+                                          onChange={(planId, value) =>
+                                            updateCustomOption(service.id, o.id, {
+                                              monthly: {
+                                                ...(o.monthly as HpPlanPriceMap),
+                                                [planId]: value,
+                                              },
+                                            })
+                                          }
+                                        />
+                                      ) : (
+                                        <NumberField
+                                          compact
+                                          label="月額"
+                                          suffix="円"
+                                          value={o.monthly as number}
+                                          onChange={(v) =>
+                                            updateCustomOption(service.id, o.id, { monthly: v })
+                                          }
+                                          min={0}
+                                          inputClassName="py-3"
+                                          containerClassName="h-full min-h-[132px] flex flex-col justify-end"
+                                        />
+                                      )}
+                                    </div>
+                                    <div className="col-span-2 sm:col-span-2 flex justify-end">
+                                      <button
+                                        type="button"
+                                        onClick={() => removeCustomOption(service.id, o.id)}
+                                        className="rounded-md p-2 text-slate-400 transition hover:bg-rose-50 hover:text-rose-600"
+                                        aria-label="削除"
+                                      >
+                                        <Trash2 className="h-4 w-4" />
+                                      </button>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
                           </div>
-                          <div className="col-span-12 flex justify-between sm:col-span-2 sm:justify-end">
-                            <div className="text-[10px] text-slate-400 sm:hidden">
-                              月額売上に加算
+
+                          <div className="rounded-lg border border-slate-200 bg-white p-3">
+                            <div className="mb-3 flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <span className="rounded-md bg-purple-100 p-1.5 text-purple-600">
+                                  <BarChart3 className="h-4 w-4" />
+                                </span>
+                                <div>
+                                  <div className="text-sm font-semibold text-slate-900">
+                                    従量課金メニュー
+                                  </div>
+                                  <div className="text-[10px] text-slate-400">
+                                    単価 × 月間回数で月額売上に加算
+                                  </div>
+                                </div>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => addPerUseOption(service.id)}
+                                className="flex items-center gap-1 rounded-md bg-white px-2.5 py-1.5 text-xs font-medium text-indigo-600 shadow-sm ring-1 ring-slate-200 transition hover:bg-indigo-50"
+                              >
+                                <Plus className="h-3.5 w-3.5" /> 追加
+                              </button>
                             </div>
-                            <button
-                              type="button"
-                              onClick={() => removePerUseOption(option.id)}
-                              className="rounded-md p-2 text-slate-400 transition hover:bg-rose-50 hover:text-rose-600"
-                              aria-label="削除"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </button>
+
+                            {st.perUseOptions.length === 0 ? (
+                              <div className="rounded-md border border-dashed border-slate-300 bg-slate-50 py-4 text-center text-xs text-slate-400">
+                                このサービス専用の従量課金メニューを追加してください
+                              </div>
+                            ) : (
+                              <div className="space-y-2">
+                                {st.perUseOptions.map((option) => (
+                                  <div
+                                    key={option.id}
+                                    className="grid grid-cols-12 items-stretch gap-2 rounded-md bg-white p-2 ring-1 ring-slate-200"
+                                  >
+                                    <div className="col-span-12 sm:col-span-4">
+                                      <div className="flex h-full min-h-[132px] flex-col justify-end rounded-lg border border-slate-200 bg-slate-50/40 p-2">
+                                        <label className="mb-1 flex items-center gap-1.5 text-[11px] font-medium text-slate-600">
+                                          名称
+                                        </label>
+                                        <input
+                                          value={option.name}
+                                          onChange={(e) =>
+                                            updatePerUseOption(service.id, option.id, {
+                                              name: e.target.value,
+                                            })
+                                          }
+                                          placeholder="例: AI記事作成"
+                                          className="w-full rounded-md border border-slate-300 bg-white px-2 py-3 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                        />
+                                      </div>
+                                    </div>
+                                    <div
+                                      className={`col-span-4 ${
+                                        hasHpPlanSelector(service.id)
+                                          ? 'sm:col-span-3'
+                                          : 'sm:col-span-2'
+                                      }`}
+                                    >
+                                      {hasHpPlanSelector(service.id) ? (
+                                        <PlanPriceField
+                                          label="単価"
+                                          prices={option.unitPrice as HpPlanPriceMap}
+                                          plans={getAvailableHpPlans(service.id)}
+                                          onChange={(planId, value) =>
+                                            updatePerUseOption(service.id, option.id, {
+                                              unitPrice: {
+                                                ...(option.unitPrice as HpPlanPriceMap),
+                                                [planId]: value,
+                                              },
+                                            })
+                                          }
+                                        />
+                                      ) : (
+                                        <NumberField
+                                          compact
+                                          label="単価"
+                                          suffix="円"
+                                          value={option.unitPrice as number}
+                                          onChange={(v) =>
+                                            updatePerUseOption(service.id, option.id, {
+                                              unitPrice: v,
+                                            })
+                                          }
+                                          min={0}
+                                          inputClassName="py-3"
+                                          containerClassName="h-full min-h-[132px] flex flex-col justify-end"
+                                        />
+                                      )}
+                                    </div>
+                                    <div
+                                      className={`col-span-4 ${
+                                        hasHpPlanSelector(service.id)
+                                          ? 'sm:col-span-2'
+                                          : 'sm:col-span-2'
+                                      }`}
+                                    >
+                                      <NumberField
+                                        compact
+                                        label="月間回数"
+                                        suffix="回"
+                                        value={option.monthlyCount}
+                                        onChange={(v) =>
+                                          updatePerUseOption(service.id, option.id, {
+                                            monthlyCount: v,
+                                          })
+                                        }
+                                        min={0}
+                                        inputClassName="py-3"
+                                        containerClassName="h-full min-h-[132px] flex flex-col justify-end"
+                                      />
+                                    </div>
+                                    <div
+                                      className={`col-span-4 ${
+                                        hasHpPlanSelector(service.id)
+                                          ? 'sm:col-span-2'
+                                          : 'sm:col-span-2'
+                                      }`}
+                                    >
+                                      <div className="flex h-full min-h-[132px] flex-col justify-end rounded-lg border border-slate-200 bg-slate-50/40 p-2">
+                                        <label className="mb-1 flex items-center gap-1.5 text-[11px] font-medium text-slate-600">
+                                          月額加算
+                                        </label>
+                                        <div className="rounded-md border border-emerald-200 bg-emerald-50 px-2 py-3 text-right text-sm font-bold tabular-nums text-emerald-700">
+                                          ¥{fmt(
+                                            getPriceByPlan(option.unitPrice, st.hpPlan) *
+                                              option.monthlyCount,
+                                          )}
+                                        </div>
+                                      </div>
+                                    </div>
+                                    <div
+                                      className={`col-span-12 flex justify-between ${
+                                        hasHpPlanSelector(service.id)
+                                          ? 'sm:col-span-1'
+                                          : 'sm:col-span-2'
+                                      } sm:justify-end`}
+                                    >
+                                      <div className="text-[10px] text-slate-400 sm:hidden">
+                                        月額売上に加算
+                                      </div>
+                                      <button
+                                        type="button"
+                                        onClick={() => removePerUseOption(service.id, option.id)}
+                                        className="rounded-md p-2 text-slate-400 transition hover:bg-rose-50 hover:text-rose-600"
+                                        aria-label="削除"
+                                      >
+                                        <Trash2 className="h-4 w-4" />
+                                      </button>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
                           </div>
                         </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
+                      </div>
+                    );
+                  })
+                )}
               </div>
             </Section>
           </div>
@@ -1536,6 +1772,8 @@ function NumberField({
   max,
   hint,
   compact = false,
+  inputClassName,
+  containerClassName,
 }: {
   icon?: React.ReactNode;
   label: string;
@@ -1547,6 +1785,8 @@ function NumberField({
   max?: number;
   hint?: string;
   compact?: boolean;
+  inputClassName?: string;
+  containerClassName?: string;
 }) {
   const [display, setDisplay] = useState(String(value));
 
@@ -1565,7 +1805,7 @@ function NumberField({
     <div
       className={`rounded-lg border border-slate-200 bg-slate-50/40 ${
         compact ? 'p-2' : 'p-2.5'
-      }`}
+      } ${containerClassName ?? ''}`}
     >
       <label
         htmlFor={inputId}
@@ -1611,7 +1851,7 @@ function NumberField({
               onChange(clamped);
             }
           }}
-          className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-right text-sm font-semibold tabular-nums focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+          className={`w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-right text-sm font-semibold tabular-nums focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 ${inputClassName ?? ''}`}
         />
         {suffix && (
           <span className="flex-none whitespace-nowrap text-[11px] text-slate-500">
@@ -1620,6 +1860,42 @@ function NumberField({
         )}
       </div>
       {hint && <div className="mt-1 text-[10px] text-slate-400">{hint}</div>}
+    </div>
+  );
+}
+
+function PlanPriceField({
+  label,
+  prices,
+  plans,
+  onChange,
+}: {
+  label: string;
+  prices: HpPlanPriceMap;
+  plans: { id: HpPlanId; name: string }[];
+  onChange: (planId: HpPlanId, value: number) => void;
+}) {
+  return (
+    <div className="rounded-lg border border-slate-200 bg-slate-50/40 p-2">
+      <label className="mb-1 flex items-center gap-1.5 text-[11px] font-medium text-slate-600">
+        {label}
+      </label>
+      <div className="space-y-1.5">
+        {plans.map((plan) => (
+          <div key={plan.id} className="flex items-center gap-1">
+            <span className="w-14 flex-none whitespace-nowrap text-[10px] font-medium text-slate-500">
+              {plan.name}
+            </span>
+            <input
+              type="number"
+              value={prices[plan.id] ?? 0}
+              onChange={(e) => onChange(plan.id, Number(e.target.value) || 0)}
+              className="min-w-0 w-0 flex-1 rounded-md border border-slate-300 bg-white px-2 py-1 text-right text-xs font-semibold tabular-nums focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+            />
+            <span className="flex-none text-[10px] text-slate-500">円</span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
