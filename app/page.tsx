@@ -598,34 +598,32 @@ export default function PriceSimulatorPage() {
   // レンダリング
   // =====================================================
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-4 md:p-8">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-3 sm:p-4 md:p-6 lg:p-8">
       <div className="mx-auto max-w-[1440px]">
         {/* ===== ヘッダー ===== */}
-        <header className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-3">
-            <div className="rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 p-2.5 text-white shadow-lg shadow-indigo-200">
-              <Calculator className="h-6 w-6" />
+        <header className="mb-4 flex items-center justify-between gap-3 sm:mb-6">
+          <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+            <div className="shrink-0 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 p-2 text-white shadow-lg shadow-indigo-200 sm:p-2.5">
+              <Calculator className="h-5 w-5 sm:h-6 sm:w-6" />
             </div>
-            <div>
-              <h1 className="text-2xl font-bold text-slate-900 md:text-3xl">料金・利益シミュレーター</h1>
-              <p className="text-sm text-slate-500">サブスク型Web制作サービスの収益性をリアルタイムに可視化</p>
+            <div className="min-w-0">
+              <h1 className="truncate text-lg font-bold text-slate-900 sm:text-2xl md:text-3xl">料金・利益シミュレーター</h1>
+              <p className="hidden text-sm text-slate-500 sm:block">サブスク型Web制作サービスの収益性をリアルタイムに可視化</p>
             </div>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setSaveModalOpen(true)}
-              className="flex items-center gap-1.5 rounded-full bg-indigo-600 px-3 py-1 text-xs font-semibold text-white shadow-sm transition hover:bg-indigo-700 active:scale-95"
-            >
-              <Save className="h-3.5 w-3.5" />
-              保存
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={() => setSaveModalOpen(true)}
+            className="shrink-0 flex items-center gap-1.5 rounded-full bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-indigo-700 active:scale-95"
+          >
+            <Save className="h-3.5 w-3.5" />
+            <span>保存</span>
+          </button>
         </header>
 
         {/* ===== 前提条件 ===== */}
         <Section icon={<Settings className="h-4 w-4" />} title="① 前提条件・原価入力" subtitle="シミュレーション全体に適用される共通パラメータ">
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+          <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4">
             <NumberField icon={<Coins className="h-4 w-4" />} label="担当者時給" suffix="円" value={hourlyRate} onChange={setHourlyRate} step={100} min={0} />
             <NumberField icon={<Sparkles className="h-4 w-4" />} label="AIツール月額費用" suffix="円" value={toolCost} onChange={setToolCost} step={500} min={0} hint="Cursor / Claude等" />
             <NumberField icon={<Users className="h-4 w-4" />} label="同時担当クライアント数" suffix="社" value={clientCount} onChange={setClientCount} step={1} min={1} hint="ツール代を按分するための分母" />
@@ -634,9 +632,9 @@ export default function PriceSimulatorPage() {
         </Section>
 
         {/* ===== メインコンテンツ ===== */}
-        <div className="mt-6 grid gap-6 xl:grid-cols-12">
+        <div className="mt-4 grid gap-4 sm:mt-6 sm:gap-6 lg:grid-cols-12">
           {/* ----- 左ペイン ----- */}
-          <div className="space-y-6 xl:col-span-7">
+          <div className="space-y-4 sm:space-y-6 lg:col-span-7">
 
             {/* サービス選択 */}
             <Section icon={<Wallet className="h-4 w-4" />} title="② サービスメニュー" subtitle="提供するプランを選択し、想定作業時間を入力">
@@ -698,7 +696,7 @@ export default function PriceSimulatorPage() {
 
                       {/* ---- HP プランセレクター ---- */}
                       {st.enabled && isHp && (
-                        <div className="mt-3 grid gap-1.5 border-t border-indigo-100 pt-3" style={{ gridTemplateColumns: `repeat(${getAvailableHpPlans(s.id).length}, 1fr)` }}>
+                        <div className={`mt-3 grid gap-1.5 border-t border-indigo-100 pt-3 ${getAvailableHpPlans(s.id).length === 4 ? 'grid-cols-2 sm:grid-cols-4' : 'grid-cols-3'}`}>
                           {getAvailableHpPlans(s.id).map((plan) => (
                             <button
                               key={plan.id}
@@ -793,8 +791,8 @@ export default function PriceSimulatorPage() {
                           ) : (
                             <div className="space-y-2">
                               {planCustomOpts.map((o) => (
-                                <div key={o.id} className="grid grid-cols-12 items-end gap-2 rounded-md bg-white p-2 ring-1 ring-slate-200">
-                                  <div className="col-span-12 sm:col-span-5">
+                                <div key={o.id} className="rounded-md bg-white p-2 ring-1 ring-slate-200">
+                                  <div className="mb-1.5">
                                     <label className="mb-0.5 block text-[10px] font-medium text-slate-500">名称</label>
                                     <input
                                       value={o.name}
@@ -803,16 +801,16 @@ export default function PriceSimulatorPage() {
                                       className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
                                     />
                                   </div>
-                                  <div className="col-span-5 sm:col-span-3">
-                                    <label className="mb-0.5 block text-[10px] font-medium text-slate-500">初期 (円)</label>
-                                    <input type="number" value={o.initial} onChange={(e) => updateCustomOption(s.id, o.id, { initial: Number(e.target.value) || 0 })} className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm tabular-nums focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500" />
-                                  </div>
-                                  <div className="col-span-5 sm:col-span-3">
-                                    <label className="mb-0.5 block text-[10px] font-medium text-slate-500">月額 (円)</label>
-                                    <input type="number" value={o.monthly} onChange={(e) => updateCustomOption(s.id, o.id, { monthly: Number(e.target.value) || 0 })} className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm tabular-nums focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500" />
-                                  </div>
-                                  <div className="col-span-2 sm:col-span-1 flex justify-end">
-                                    <button type="button" onClick={() => removeCustomOption(s.id, o.id)} className="rounded-md p-2 text-slate-400 transition hover:bg-rose-50 hover:text-rose-600" aria-label="削除">
+                                  <div className="flex items-end gap-2">
+                                    <div className="flex-1">
+                                      <label className="mb-0.5 block text-[10px] font-medium text-slate-500">初期 (円)</label>
+                                      <input type="number" value={o.initial} onChange={(e) => updateCustomOption(s.id, o.id, { initial: Number(e.target.value) || 0 })} className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm tabular-nums focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500" />
+                                    </div>
+                                    <div className="flex-1">
+                                      <label className="mb-0.5 block text-[10px] font-medium text-slate-500">月額 (円)</label>
+                                      <input type="number" value={o.monthly} onChange={(e) => updateCustomOption(s.id, o.id, { monthly: Number(e.target.value) || 0 })} className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm tabular-nums focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500" />
+                                    </div>
+                                    <button type="button" onClick={() => removeCustomOption(s.id, o.id)} className="shrink-0 rounded-md p-2 text-slate-400 transition hover:bg-rose-50 hover:text-rose-600" aria-label="削除">
                                       <Trash2 className="h-4 w-4" />
                                     </button>
                                   </div>
@@ -853,8 +851,8 @@ export default function PriceSimulatorPage() {
                               {planPerUseOpts.map((opt) => {
                                 const monthly = opt.unitPrice * (opt.monthlyCount || 0);
                                 return (
-                                  <div key={opt.id} className="grid grid-cols-12 items-end gap-2 rounded-md bg-white p-2 ring-1 ring-slate-200">
-                                    <div className="col-span-12 sm:col-span-4">
+                                  <div key={opt.id} className="rounded-md bg-white p-2 ring-1 ring-slate-200">
+                                    <div className="mb-1.5">
                                       <label className="mb-0.5 block text-[10px] font-medium text-slate-500">名称</label>
                                       <input
                                         value={opt.name}
@@ -863,21 +861,19 @@ export default function PriceSimulatorPage() {
                                         className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
                                       />
                                     </div>
-                                    <div className="col-span-5 sm:col-span-3">
-                                      <label className="mb-0.5 block text-[10px] font-medium text-slate-500">単価 (円)</label>
-                                      <input type="number" value={opt.unitPrice} onChange={(e) => updatePerUseOption(s.id, opt.id, { unitPrice: Number(e.target.value) || 0 })} className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm tabular-nums focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500" />
-                                    </div>
-                                    <div className="col-span-5 sm:col-span-3">
-                                      <label className="mb-0.5 block text-[10px] font-medium text-slate-500">月間回数</label>
-                                      <input type="number" value={opt.monthlyCount} onChange={(e) => updatePerUseOption(s.id, opt.id, { monthlyCount: Number(e.target.value) || 0 })} className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm tabular-nums focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500" />
-                                    </div>
-                                    <div className="col-span-10 sm:col-span-1">
-                                      <div className="rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1.5 text-right text-sm font-bold tabular-nums text-emerald-700">
+                                    <div className="flex items-end gap-2">
+                                      <div className="flex-1">
+                                        <label className="mb-0.5 block text-[10px] font-medium text-slate-500">単価 (円)</label>
+                                        <input type="number" value={opt.unitPrice} onChange={(e) => updatePerUseOption(s.id, opt.id, { unitPrice: Number(e.target.value) || 0 })} className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm tabular-nums focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500" />
+                                      </div>
+                                      <div className="flex-1">
+                                        <label className="mb-0.5 block text-[10px] font-medium text-slate-500">月間回数</label>
+                                        <input type="number" value={opt.monthlyCount} onChange={(e) => updatePerUseOption(s.id, opt.id, { monthlyCount: Number(e.target.value) || 0 })} className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm tabular-nums focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500" />
+                                      </div>
+                                      <div className="shrink-0 rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1.5 text-right text-sm font-bold tabular-nums text-emerald-700">
                                         ¥{fmt(monthly)}
                                       </div>
-                                    </div>
-                                    <div className="col-span-2 sm:col-span-1 flex justify-end">
-                                      <button type="button" onClick={() => removePerUseOption(s.id, opt.id)} className="rounded-md p-2 text-slate-400 transition hover:bg-rose-50 hover:text-rose-600" aria-label="削除">
+                                      <button type="button" onClick={() => removePerUseOption(s.id, opt.id)} className="shrink-0 rounded-md p-2 text-slate-400 transition hover:bg-rose-50 hover:text-rose-600" aria-label="削除">
                                         <Trash2 className="h-4 w-4" />
                                       </button>
                                     </div>
@@ -966,7 +962,7 @@ export default function PriceSimulatorPage() {
           </div>
 
           {/* ----- 右ペイン: 結果表示 ----- */}
-          <div className="space-y-6 xl:col-span-5">
+          <div className="space-y-4 sm:space-y-6 lg:col-span-5">
             {/* KPIカード */}
             <Section icon={<TrendingUp className="h-4 w-4" />} title="④ シミュレーション結果" subtitle="入力値から自動計算">
               <div className="grid grid-cols-2 gap-3">
@@ -1008,7 +1004,7 @@ export default function PriceSimulatorPage() {
 
             {/* 売上・原価・粗利の比較 */}
             <Section icon={<BarChart3 className="h-4 w-4" />} title="売上・原価・粗利の内訳" subtitle="初期 vs 月額">
-              <div className="h-64 w-full">
+              <div className="h-48 w-full sm:h-64">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={calc.breakdownData} margin={{ top: 8, right: 8, left: 0, bottom: 4 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
@@ -1026,7 +1022,7 @@ export default function PriceSimulatorPage() {
 
             {/* 累積利益チャート */}
             <Section icon={<LineIcon className="h-4 w-4" />} title="累積粗利の推移" subtitle={`契約期間 ${contractMonths}ヶ月における累積額`}>
-              <div className="h-64 w-full">
+              <div className="h-48 w-full sm:h-64">
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart data={calc.cumulativeData} margin={{ top: 8, right: 16, left: 0, bottom: 4 }}>
                     <defs>
@@ -1112,15 +1108,15 @@ export default function PriceSimulatorPage() {
         <button
           type="button"
           onClick={() => setChatOpen((o) => !o)}
-          className="fixed bottom-6 right-6 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 text-white shadow-xl shadow-indigo-300/50 transition hover:scale-105 active:scale-95"
+          className="fixed bottom-4 right-4 z-50 flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 text-white shadow-xl shadow-indigo-300/50 transition hover:scale-105 active:scale-95 sm:bottom-6 sm:right-6 sm:h-14 sm:w-14"
           aria-label={chatOpen ? 'チャットを閉じる' : 'AIに相談する'}
         >
-          {chatOpen ? <X className="h-6 w-6" /> : <MessageSquare className="h-6 w-6" />}
+          {chatOpen ? <X className="h-5 w-5 sm:h-6 sm:w-6" /> : <MessageSquare className="h-5 w-5 sm:h-6 sm:w-6" />}
         </button>
 
         {/* ===== チャットパネル ===== */}
         {chatOpen && (
-          <div className="fixed bottom-24 right-6 z-50 flex h-[520px] w-[380px] max-w-[calc(100vw-3rem)] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl shadow-slate-900/15">
+          <div className="fixed bottom-20 right-3 z-50 flex h-[75dvh] w-[calc(100vw-1.5rem)] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl shadow-slate-900/15 sm:bottom-24 sm:right-6 sm:h-[520px] sm:w-[380px]">
             <div className="flex flex-none items-center gap-3 bg-gradient-to-r from-indigo-500 to-purple-600 px-4 py-3">
               <div className="rounded-full bg-white/25 p-1.5"><Bot className="h-4 w-4 text-white" /></div>
               <div>
@@ -1191,7 +1187,7 @@ export default function PriceSimulatorPage() {
 
 function Section({ icon, title, subtitle, children }: { icon: React.ReactNode; title: string; subtitle?: string; children: React.ReactNode }) {
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+    <section className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:p-5">
       <div className="mb-4 flex items-start justify-between gap-2">
         <div>
           <div className="flex items-center gap-2 text-sm font-bold text-slate-900">
@@ -1287,7 +1283,7 @@ function AddonRow({ icon, title, caption, effect, effectColor, children }: {
         </div>
         <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${effectStyles}`}>→ {effect}</span>
       </div>
-      <div className="grid grid-cols-3 gap-2">{children}</div>
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">{children}</div>
     </div>
   );
 }
