@@ -70,7 +70,7 @@ type HpPlanId = 'minimal' | 'premium' | 'pro' | 'max';
 
 const HP_PLANS: { id: HpPlanId; name: string; initialFee: number; monthlyFee: number; badge?: string }[] = [
   { id: 'minimal', name: 'ミニマム', initialFee: 0, monthlyFee: 2_000 },
-  { id: 'premium', name: 'プレミアム', initialFee: 0, monthlyFee: 6_800, badge: '人気' },
+  { id: 'premium', name: 'プレミアム', initialFee: 0, monthlyFee: 6_800 },
   { id: 'pro', name: 'プロ', initialFee: 100_000, monthlyFee: 6_800 },
   { id: 'max', name: 'MAX', initialFee: 200_000, monthlyFee: 12_800 },
 ];
@@ -118,7 +118,6 @@ const SERVICES: ServiceDef[] = [
     defaultMonthlyHours: 15,
     basePages: 15,
     baseRevisions: 10,
-    badge: 'お得',
     description: 'HP Premium + Instagram + MEO すべてセット',
   },
   {
