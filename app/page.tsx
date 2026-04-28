@@ -214,6 +214,15 @@ type ConsultingItem = { id: number; name: string; price: number };
 type ChatMessage = { role: 'user' | 'assistant'; content: string };
 
 const STORAGE_KEY = 'price-simulator-v1';
+const SNAPSHOTS_KEY = 'price-simulator-snapshots-v1';
+const MAX_SNAPSHOTS = 10;
+
+type SnapshotData = {
+  hourlyRate: number; toolCost: number; clientCount: number; contractMonths: number;
+  serviceState: Record<string, ServiceState>;
+  consultingEnabled: boolean; consultingItems: ConsultingItem[]; nextConsultingId: number;
+};
+type Snapshot = { id: string; name: string; savedAt: string; data: SnapshotData };
 
 const toHalfWidth = (s: string) =>
   s.replace(/[０-９．]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xfee0));
@@ -279,8 +288,11 @@ export default function PriceSimulatorPage() {
   const [chatStreaming, setChatStreaming] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
-  // ----- 保存モーダル -----
+  // ----- 保存・読み込みモーダル -----
   const [saveModalOpen, setSaveModalOpen] = useState(false);
+  const [saveName, setSaveName] = useState('');
+  const [snapshots, setSnapshots] = useState<Snapshot[]>([]);
+  const [loadModalOpen, setLoadModalOpen] = useState(false);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -288,6 +300,10 @@ export default function PriceSimulatorPage() {
 
   // localStorage 復元
   useEffect(() => {
+    try {
+      const snapsRaw = localStorage.getItem(SNAPSHOTS_KEY);
+      if (snapsRaw) setSnapshots(JSON.parse(snapsRaw));
+    } catch { /* ignore */ }
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (!raw) return;
@@ -307,17 +323,61 @@ export default function PriceSimulatorPage() {
       }
       if (saved.consultingEnabled !== undefined) setConsultingEnabled(saved.consultingEnabled);
       if (saved.consultingItems !== undefined) setConsultingItems(saved.consultingItems);
+      if (saved.nextConsultingId !== undefined) setNextConsultingId(saved.nextConsultingId);
     } catch { /* 破損データは無視 */ }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const currentData = (): SnapshotData => ({
+    hourlyRate, toolCost, clientCount, contractMonths, serviceState,
+    consultingEnabled, consultingItems, nextConsultingId,
+  });
+
+  const applyData = (d: SnapshotData) => {
+    setHourlyRate(d.hourlyRate);
+    setToolCost(d.toolCost);
+    setClientCount(d.clientCount);
+    setContractMonths(d.contractMonths);
+    setServiceState((prev) => {
+      const merged: Record<string, ServiceState> = { ...prev };
+      for (const [id, savedSt] of Object.entries(d.serviceState)) {
+        if (merged[id]) merged[id] = { ...merged[id], ...savedSt };
+      }
+      return merged;
+    });
+    setConsultingEnabled(d.consultingEnabled);
+    setConsultingItems(d.consultingItems);
+    setNextConsultingId(d.nextConsultingId);
+  };
+
   const confirmSave = () => {
+    const name = saveName.trim() || `スナップショット ${snapshots.length + 1}`;
+    const snap: Snapshot = {
+      id: Date.now().toString(),
+      name,
+      savedAt: new Date().toLocaleString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }),
+      data: currentData(),
+    };
+    const next = [snap, ...snapshots].slice(0, MAX_SNAPSHOTS);
+    setSnapshots(next);
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({
-        hourlyRate, toolCost, clientCount, contractMonths, serviceState, consultingEnabled, consultingItems,
-      }));
-    } catch { /* ストレージ容量超過等は無視 */ }
+      localStorage.setItem(SNAPSHOTS_KEY, JSON.stringify(next));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(snap.data));
+    } catch { /* ignore */ }
     setSaveModalOpen(false);
+    setSaveName('');
+  };
+
+  const loadSnapshot = (snap: Snapshot) => {
+    applyData(snap.data);
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(snap.data)); } catch { /* ignore */ }
+    setLoadModalOpen(false);
+  };
+
+  const deleteSnapshot = (id: string) => {
+    const next = snapshots.filter((s) => s.id !== id);
+    setSnapshots(next);
+    try { localStorage.setItem(SNAPSHOTS_KEY, JSON.stringify(next)); } catch { /* ignore */ }
   };
 
   // ----- カスタムオプション操作 -----
@@ -618,14 +678,27 @@ export default function PriceSimulatorPage() {
               <p className="hidden text-sm text-slate-500 sm:block">サブスク型Web制作サービスの収益性をリアルタイムに可視化</p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={() => setSaveModalOpen(true)}
-            className="shrink-0 flex items-center gap-2 rounded-full bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700 active:scale-95"
-          >
-            <Save className="h-4 w-4" />
-            <span>保存</span>
-          </button>
+          <div className="flex shrink-0 items-center gap-2">
+            {snapshots.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setLoadModalOpen(true)}
+                className="flex items-center gap-2 rounded-full border border-indigo-200 bg-white px-4 py-2 text-sm font-semibold text-indigo-600 shadow-sm transition hover:bg-indigo-50 active:scale-95"
+              >
+                <ArrowDownToLine className="h-4 w-4" />
+                <span className="hidden sm:inline">読み込み</span>
+                <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-indigo-100 text-xs font-bold text-indigo-700 sm:ml-0.5">{snapshots.length}</span>
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => { setSaveName(''); setSaveModalOpen(true); }}
+              className="flex items-center gap-2 rounded-full bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700 active:scale-95"
+            >
+              <Save className="h-4 w-4" />
+              <span>保存</span>
+            </button>
+          </div>
         </header>
 
         {/* ===== 前提条件 ===== */}
@@ -1090,15 +1163,27 @@ export default function PriceSimulatorPage() {
 
         {/* ===== 保存確認モーダル ===== */}
         {saveModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-            <div className="w-80 rounded-2xl bg-white p-6 shadow-2xl">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+            <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl">
               <div className="mb-1 flex items-center gap-2 text-base font-bold text-slate-900">
                 <Save className="h-5 w-5 text-indigo-500" />
-                保存しますか？
+                スナップショット保存
               </div>
-              <p className="mb-5 text-xs text-slate-500">
-                現在の入力内容をブラウザに保存します。次回アクセス時に自動で復元されます。
+              <p className="mb-4 text-xs text-slate-500">
+                現在の設定に名前をつけて保存します（最大{MAX_SNAPSHOTS}件）。
               </p>
+              <input
+                type="text"
+                value={saveName}
+                onChange={(e) => setSaveName(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && confirmSave()}
+                placeholder={`スナップショット ${snapshots.length + 1}`}
+                className="mb-4 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                autoFocus
+              />
+              {snapshots.length >= MAX_SNAPSHOTS && (
+                <p className="mb-3 text-xs text-amber-600">保存件数が上限({MAX_SNAPSHOTS}件)に達しています。古いデータが削除されます。</p>
+              )}
               <div className="flex gap-2">
                 <button type="button" onClick={() => setSaveModalOpen(false)} className="flex-1 rounded-xl border border-slate-200 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50">
                   キャンセル
@@ -1107,6 +1192,52 @@ export default function PriceSimulatorPage() {
                   保存する
                 </button>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* ===== 読み込みモーダル ===== */}
+        {loadModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+            <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+              <div className="mb-4 flex items-center justify-between">
+                <div className="flex items-center gap-2 text-base font-bold text-slate-900">
+                  <ArrowDownToLine className="h-5 w-5 text-indigo-500" />
+                  保存データ読み込み
+                </div>
+                <button type="button" onClick={() => setLoadModalOpen(false)} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100">
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+              {snapshots.length === 0 ? (
+                <p className="py-6 text-center text-sm text-slate-400">保存されたデータがありません</p>
+              ) : (
+                <ul className="max-h-80 space-y-2 overflow-y-auto">
+                  {snapshots.map((snap) => (
+                    <li key={snap.id} className="flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2.5">
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-semibold text-slate-800">{snap.name}</p>
+                        <p className="text-xs text-slate-400">{snap.savedAt}</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => loadSnapshot(snap)}
+                        className="shrink-0 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-indigo-700"
+                      >
+                        読み込む
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => deleteSnapshot(snap.id)}
+                        className="shrink-0 rounded-lg border border-slate-200 p-1.5 text-slate-400 transition hover:border-red-200 hover:bg-red-50 hover:text-red-500"
+                        aria-label="削除"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
           </div>
         )}
