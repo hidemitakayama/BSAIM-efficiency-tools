@@ -292,6 +292,7 @@ export default function PriceSimulatorPage() {
   const [saveModalOpen, setSaveModalOpen] = useState(false);
   const [saveName, setSaveName] = useState('');
   const [saveNameComposing, setSaveNameComposing] = useState(false);
+  const [overwriteId, setOverwriteId] = useState<string>('');
   const [snapshots, setSnapshots] = useState<Snapshot[]>([]);
   const [loadModalOpen, setLoadModalOpen] = useState(false);
 
@@ -352,21 +353,27 @@ export default function PriceSimulatorPage() {
   };
 
   const confirmSave = () => {
-    const name = saveName.trim() || `スナップショット ${snapshots.length + 1}`;
-    const snap: Snapshot = {
-      id: Date.now().toString(),
-      name,
-      savedAt: new Date().toLocaleString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }),
-      data: currentData(),
-    };
-    const next = [snap, ...snapshots].slice(0, MAX_SNAPSHOTS);
+    const now = new Date().toLocaleString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+    let next: Snapshot[];
+    if (overwriteId) {
+      next = snapshots.map((s) =>
+        s.id === overwriteId
+          ? { ...s, name: saveName.trim() || s.name, savedAt: now, data: currentData() }
+          : s,
+      );
+    } else {
+      const name = saveName.trim() || `スナップショット ${snapshots.length + 1}`;
+      const snap: Snapshot = { id: Date.now().toString(), name, savedAt: now, data: currentData() };
+      next = [snap, ...snapshots].slice(0, MAX_SNAPSHOTS);
+    }
     setSnapshots(next);
     try {
       localStorage.setItem(SNAPSHOTS_KEY, JSON.stringify(next));
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(snap.data));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(currentData()));
     } catch { /* ignore */ }
     setSaveModalOpen(false);
     setSaveName('');
+    setOverwriteId('');
   };
 
   const loadSnapshot = (snap: Snapshot) => {
@@ -1173,6 +1180,29 @@ export default function PriceSimulatorPage() {
               <p className="mb-4 text-xs text-slate-500">
                 現在の設定に名前をつけて保存します（最大{MAX_SNAPSHOTS}件）。
               </p>
+
+              {/* 上書き選択 */}
+              {snapshots.length > 0 && (
+                <div className="mb-3">
+                  <label className="mb-1 block text-[11px] font-medium text-slate-500">既存データを上書き（任意）</label>
+                  <select
+                    value={overwriteId}
+                    onChange={(e) => {
+                      const id = e.target.value;
+                      setOverwriteId(id);
+                      if (id) setSaveName(snapshots.find((s) => s.id === id)?.name ?? '');
+                      else setSaveName('');
+                    }}
+                    className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  >
+                    <option value="">── 新規保存 ──</option>
+                    {snapshots.map((s) => (
+                      <option key={s.id} value={s.id}>{s.name}（{s.savedAt}）</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
               <input
                 type="text"
                 value={saveName}
@@ -1180,19 +1210,19 @@ export default function PriceSimulatorPage() {
                 onCompositionStart={() => setSaveNameComposing(true)}
                 onCompositionEnd={() => setSaveNameComposing(false)}
                 onKeyDown={(e) => e.key === 'Enter' && !saveNameComposing && confirmSave()}
-                placeholder={`スナップショット ${snapshots.length + 1}`}
+                placeholder={overwriteId ? '名前を変更（空欄で現在の名前のまま）' : `スナップショット ${snapshots.length + 1}`}
                 className="mb-4 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
                 autoFocus
               />
-              {snapshots.length >= MAX_SNAPSHOTS && (
+              {!overwriteId && snapshots.length >= MAX_SNAPSHOTS && (
                 <p className="mb-3 text-xs text-amber-600">保存件数が上限({MAX_SNAPSHOTS}件)に達しています。古いデータが削除されます。</p>
               )}
               <div className="flex gap-2">
-                <button type="button" onClick={() => setSaveModalOpen(false)} className="flex-1 rounded-xl border border-slate-200 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50">
+                <button type="button" onClick={() => { setSaveModalOpen(false); setOverwriteId(''); setSaveName(''); }} className="flex-1 rounded-xl border border-slate-200 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50">
                   キャンセル
                 </button>
                 <button type="button" onClick={confirmSave} className="flex-1 rounded-xl bg-indigo-600 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700">
-                  保存する
+                  {overwriteId ? '上書き保存' : '保存する'}
                 </button>
               </div>
             </div>
