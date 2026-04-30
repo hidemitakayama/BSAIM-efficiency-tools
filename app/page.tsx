@@ -22,6 +22,7 @@ import {
   Calculator,
   Calendar,
   CheckCircle2,
+  ChevronDown,
   Clock,
   Coins,
   FileText,
@@ -205,8 +206,6 @@ type ServiceState = {
   extraPagePrice: number;
   extraRevisions: number;
   extraRevisionPrice: number;
-  blogUnits: number;
-  blogUnitPrice: number;
 };
 
 type ConsultingItem = { id: number; name: string; price: number };
@@ -241,8 +240,6 @@ const mkServiceState = (s: ServiceDef): ServiceState => ({
   extraPagePrice: 8_000,
   extraRevisions: 0,
   extraRevisionPrice: 3_000,
-  blogUnits: 1,
-  blogUnitPrice: 3_500,
 });
 
 // =====================================================
@@ -288,6 +285,14 @@ export default function PriceSimulatorPage() {
   const [chatInput, setChatInput] = useState('');
   const [chatStreaming, setChatStreaming] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
+
+  // ----- HP アドオン アコーディオン -----
+  const [hpAddonOpen, setHpAddonOpen] = useState<Record<string, { pages: boolean; revisions: boolean }>>({});
+  const toggleHpAddon = (serviceId: string, key: 'pages' | 'revisions') =>
+    setHpAddonOpen((prev) => {
+      const cur = prev[serviceId] ?? { pages: false, revisions: false };
+      return { ...prev, [serviceId]: { ...cur, [key]: !cur[key] } };
+    });
 
   // ----- メモ -----
   const [memo, setMemo] = useState('');
@@ -510,12 +515,6 @@ export default function PriceSimulatorPage() {
       const st = serviceState[s.id];
       return sum + st.extraRevisions * st.extraRevisionPrice;
     }, 0);
-    const blogRevenue = hpEnabledServices.reduce((sum, s) => {
-      const st = serviceState[s.id];
-      const chargeable = Math.max(0, st.blogUnits - 1);
-      return sum + chargeable * st.blogUnitPrice;
-    }, 0);
-
     // カスタムオプション（HP サービスは現在のプランに一致するものだけ集計）
     const customInitialRevenue = enabledServices.reduce((sum, s) => {
       const st = serviceState[s.id];
@@ -542,7 +541,7 @@ export default function PriceSimulatorPage() {
     }, 0);
 
     // 売上合計
-    const initialRevenue = serviceInitialRevenue + extraPagesRevenue + blogRevenue + customInitialRevenue;
+    const initialRevenue = serviceInitialRevenue + extraPagesRevenue + customInitialRevenue;
     const consultingRevenue = consultingEnabled ? consultingMonthly : 0;
     const monthlyRevenue = serviceMonthlyRevenue + extraRevisionsRevenue + customMonthlyRevenue + perUseMonthlyRevenue + consultingRevenue;
 
@@ -590,7 +589,7 @@ export default function PriceSimulatorPage() {
       initialProfit, monthlyProfit, initialMargin, monthlyMargin,
       ltv, paybackMonths,
       totalInitialHours, totalMonthlyHours,
-      extraPagesRevenue, extraRevisionsRevenue, blogRevenue,
+      extraPagesRevenue, extraRevisionsRevenue,
       customInitialRevenue, customMonthlyRevenue, perUseMonthlyRevenue,
       cumulativeData, breakdownData,
     };
@@ -621,7 +620,7 @@ export default function PriceSimulatorPage() {
         : 'なし',
       ``,
       `■ 追加オプション`,
-      `コンサルティング: ${consultingEnabled ? `ON（¥${fmt(consultingMonthly)}/月）` : 'OFF'} / 追加ページ: ¥${fmt(calc.extraPagesRevenue)} / 超過修正: ¥${fmt(calc.extraRevisionsRevenue)} / ブログ移管: ¥${fmt(calc.blogRevenue)} / 従量課金: ${calc.perUseMonthlyRevenue > 0 ? `¥${fmt(calc.perUseMonthlyRevenue)}/月` : 'なし'}`,
+      `コンサルティング: ${consultingEnabled ? `ON（¥${fmt(consultingMonthly)}/月）` : 'OFF'} / 追加ページ: ¥${fmt(calc.extraPagesRevenue)} / 超過修正: ¥${fmt(calc.extraRevisionsRevenue)} / 従量課金: ${calc.perUseMonthlyRevenue > 0 ? `¥${fmt(calc.perUseMonthlyRevenue)}/月` : 'なし'}`,
       ``,
       `■ シミュレーション結果`,
       `初期: 売上¥${fmt(calc.initialRevenue)} / 原価¥${fmt(calc.initialLaborCost)} / 粗利¥${fmt(calc.initialProfit)} / 利益率${fmtPct(calc.initialMargin)}`,
@@ -834,29 +833,68 @@ export default function PriceSimulatorPage() {
 
                       {/* ---- HP 内包アドオン ---- */}
                       {st.enabled && isHp && (
-                        <div className="mt-4 space-y-2 border-t border-indigo-100 pt-3">
+                        <div className="mt-4 space-y-1.5 border-t border-indigo-100 pt-3">
                           <div className="mb-1 text-[11px] font-semibold text-indigo-700">HP オプション</div>
 
-                          {/* 追加ページ */}
-                          <AddonRow icon={<FileText className="h-4 w-4" />} title="追加ページ数" caption="16ページ目以降" effect="初期売上" effectColor="indigo">
-                            <NumberField compact label="ページ数" suffix="P" value={st.extraPages} onChange={(v) => updateService(s.id, { extraPages: v })} step={1} min={0} />
-                            <NumberField compact label="単価" suffix="円/P" value={st.extraPagePrice} onChange={(v) => updateService(s.id, { extraPagePrice: v })} step={500} min={0} />
-                            <ReadonlyField label="売上加算" value={`¥${fmt(st.extraPages * st.extraPagePrice)}`} />
-                          </AddonRow>
+                          {/* 追加ページ数 アコーディオン */}
+                          {(() => {
+                            const open = hpAddonOpen[s.id]?.pages ?? false;
+                            const total = st.extraPages * st.extraPagePrice;
+                            return (
+                              <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
+                                <button
+                                  type="button"
+                                  onClick={() => toggleHpAddon(s.id, 'pages')}
+                                  className="flex w-full items-center gap-2 px-3 py-2.5 text-left transition hover:bg-slate-50"
+                                >
+                                  <span className="rounded-md bg-indigo-100 p-1 text-indigo-600"><FileText className="h-3.5 w-3.5" /></span>
+                                  <div className="flex-1 min-w-0">
+                                    <div className="text-[12px] font-semibold text-slate-800">追加ページ数</div>
+                                    <div className="text-[10px] text-slate-400">16ページ目以降</div>
+                                  </div>
+                                  {total > 0 && <span className="text-xs font-bold text-indigo-600">+¥{fmt(total)}</span>}
+                                  <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform ${open ? 'rotate-180' : ''}`} />
+                                </button>
+                                {open && (
+                                  <div className="grid grid-cols-1 gap-2 border-t border-slate-100 bg-slate-50/60 p-3 sm:grid-cols-3">
+                                    <NumberField compact label="ページ数" suffix="P" value={st.extraPages} onChange={(v) => updateService(s.id, { extraPages: v })} step={1} min={0} />
+                                    <NumberField compact label="単価" suffix="円/P" value={st.extraPagePrice} onChange={(v) => updateService(s.id, { extraPagePrice: v })} step={500} min={0} />
+                                    <ReadonlyField label="売上加算" value={`¥${fmt(total)}`} />
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })()}
 
-                          {/* 月間超過修正 */}
-                          <AddonRow icon={<Wrench className="h-4 w-4" />} title="月間超過修正" caption="11回目以降" effect="月額売上" effectColor="purple">
-                            <NumberField compact label="超過回数" suffix="回/月" value={st.extraRevisions} onChange={(v) => updateService(s.id, { extraRevisions: v })} step={1} min={0} />
-                            <NumberField compact label="単価" suffix="円/回" value={st.extraRevisionPrice} onChange={(v) => updateService(s.id, { extraRevisionPrice: v })} step={500} min={0} />
-                            <ReadonlyField label="月額加算" value={`¥${fmt(st.extraRevisions * st.extraRevisionPrice)}`} />
-                          </AddonRow>
-
-                          {/* ブログ移管 */}
-                          <AddonRow icon={<ArrowDownToLine className="h-4 w-4" />} title="ブログ移管" caption="20記事=1単位 / 初回1単位は0円" effect="初期売上" effectColor="indigo">
-                            <NumberField compact label="単位数" suffix={`単位 (${st.blogUnits * 20}記事)`} value={st.blogUnits} onChange={(v) => updateService(s.id, { blogUnits: v })} step={1} min={0} />
-                            <NumberField compact label="単位単価" suffix="円/単位" value={st.blogUnitPrice} onChange={(v) => updateService(s.id, { blogUnitPrice: v })} step={500} min={0} />
-                            <ReadonlyField label="売上加算" value={`¥${fmt(Math.max(0, st.blogUnits - 1) * st.blogUnitPrice)}`} hint={`課金: ${Math.max(0, st.blogUnits - 1)}単位`} />
-                          </AddonRow>
+                          {/* 月間超過修正 アコーディオン */}
+                          {(() => {
+                            const open = hpAddonOpen[s.id]?.revisions ?? false;
+                            const total = st.extraRevisions * st.extraRevisionPrice;
+                            return (
+                              <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
+                                <button
+                                  type="button"
+                                  onClick={() => toggleHpAddon(s.id, 'revisions')}
+                                  className="flex w-full items-center gap-2 px-3 py-2.5 text-left transition hover:bg-slate-50"
+                                >
+                                  <span className="rounded-md bg-purple-100 p-1 text-purple-600"><Wrench className="h-3.5 w-3.5" /></span>
+                                  <div className="flex-1 min-w-0">
+                                    <div className="text-[12px] font-semibold text-slate-800">月間超過修正</div>
+                                    <div className="text-[10px] text-slate-400">11回目以降</div>
+                                  </div>
+                                  {total > 0 && <span className="text-xs font-bold text-purple-600">+¥{fmt(total)}/月</span>}
+                                  <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform ${open ? 'rotate-180' : ''}`} />
+                                </button>
+                                {open && (
+                                  <div className="grid grid-cols-1 gap-2 border-t border-slate-100 bg-slate-50/60 p-3 sm:grid-cols-3">
+                                    <NumberField compact label="超過回数" suffix="回/月" value={st.extraRevisions} onChange={(v) => updateService(s.id, { extraRevisions: v })} step={1} min={0} />
+                                    <NumberField compact label="単価" suffix="円/回" value={st.extraRevisionPrice} onChange={(v) => updateService(s.id, { extraRevisionPrice: v })} step={500} min={0} />
+                                    <ReadonlyField label="月額加算" value={`¥${fmt(total)}`} />
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })()}
                         </div>
                       )}
 
@@ -1148,7 +1186,6 @@ export default function PriceSimulatorPage() {
                 <DetailBlock title="初期フェーズ" tone="indigo">
                   <DetailRow label="サービス売上" value={`¥${fmt(calc.serviceInitialRevenue)}`} />
                   <DetailRow label="追加ページ" value={`¥${fmt(calc.extraPagesRevenue)}`} />
-                  <DetailRow label="ブログ移管" value={`¥${fmt(calc.blogRevenue)}`} />
                   <DetailRow label="独自オプション" value={`¥${fmt(calc.customInitialRevenue)}`} />
                   <DetailRow label="売上合計" value={`¥${fmt(calc.initialRevenue)}`} bold />
                   <DetailRow label={`原価 (${calc.totalInitialHours}h × ¥${fmt(hourlyRate)})`} value={`▲ ¥${fmt(calc.initialLaborCost)}`} negative />
