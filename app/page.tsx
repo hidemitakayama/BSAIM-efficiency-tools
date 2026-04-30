@@ -221,6 +221,7 @@ type SnapshotData = {
   hourlyRate: number; toolCost: number; clientCount: number; contractMonths: number;
   serviceState: Record<string, ServiceState>;
   consultingEnabled: boolean; consultingItems: ConsultingItem[]; nextConsultingId: number;
+  memo: string;
 };
 type Snapshot = { id: string; name: string; savedAt: string; data: SnapshotData };
 
@@ -288,6 +289,9 @@ export default function PriceSimulatorPage() {
   const [chatStreaming, setChatStreaming] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
+  // ----- メモ -----
+  const [memo, setMemo] = useState('');
+
   // ----- 保存・読み込みモーダル -----
   const [saveModalOpen, setSaveModalOpen] = useState(false);
   const [saveName, setSaveName] = useState('');
@@ -326,13 +330,14 @@ export default function PriceSimulatorPage() {
       if (saved.consultingEnabled !== undefined) setConsultingEnabled(saved.consultingEnabled);
       if (saved.consultingItems !== undefined) setConsultingItems(saved.consultingItems);
       if (saved.nextConsultingId !== undefined) setNextConsultingId(saved.nextConsultingId);
+      if (saved.memo !== undefined) setMemo(saved.memo);
     } catch { /* 破損データは無視 */ }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const currentData = (): SnapshotData => ({
     hourlyRate, toolCost, clientCount, contractMonths, serviceState,
-    consultingEnabled, consultingItems, nextConsultingId,
+    consultingEnabled, consultingItems, nextConsultingId, memo,
   });
 
   const applyData = (d: SnapshotData) => {
@@ -350,6 +355,7 @@ export default function PriceSimulatorPage() {
     setConsultingEnabled(d.consultingEnabled);
     setConsultingItems(d.consultingItems);
     setNextConsultingId(d.nextConsultingId);
+    setMemo(d.memo ?? '');
   };
 
   const confirmSave = () => {
@@ -1161,6 +1167,17 @@ export default function PriceSimulatorPage() {
                   <DetailRow label="利益率" value={fmtPct(calc.monthlyMargin)} tone={calc.monthlyProfit >= 0 ? 'green' : 'red'} />
                 </DetailBlock>
               </div>
+            </Section>
+
+            {/* メモ */}
+            <Section icon={<MessageSquare className="h-4 w-4" />} title="メモ" subtitle="このシミュレーションに関するメモを自由に記入">
+              <textarea
+                value={memo}
+                onChange={(e) => setMemo(e.target.value)}
+                placeholder="提案時の補足・交渉余地・課題感など自由に記入..."
+                rows={4}
+                className="w-full resize-y rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm leading-relaxed text-slate-800 placeholder:text-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              />
             </Section>
           </div>
         </div>
