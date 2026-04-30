@@ -526,6 +526,22 @@ function DashboardView({ members, onSelectMember, onAddMember, onDeleteMember, o
   onDeleteMember: (id: string) => void;
   onUpdateMember: (id: string, patch: Partial<Member>) => void;
 }) {
+  const grandTotals = useMemo(() => {
+    let initial = 0, monthly = 0, ltv = 0;
+    for (const m of members) {
+      const allocated = m.toolCost / Math.max(1, m.clients.length);
+      for (const c of m.clients) {
+        const calc = calcClientMetrics(c, m.hourlyRate, allocated);
+        initial += calc.initialProfit;
+        monthly += calc.monthlyProfit;
+        ltv     += calc.ltv;
+      }
+    }
+    return { initial, monthly, ltv };
+  }, [members]);
+
+  const hasClients = members.some(m => m.clients.length > 0);
+
   return (
     <div className="p-3 sm:p-4 md:p-6 lg:p-8">
       <div className="mx-auto max-w-[1440px]">
@@ -541,6 +557,33 @@ function DashboardView({ members, onSelectMember, onAddMember, onDeleteMember, o
             </div>
           </div>
         </header>
+
+        {/* 全体合算 KPI */}
+        {hasClients && (
+          <div className="mb-6 rounded-2xl border border-indigo-100 bg-gradient-to-br from-indigo-50 to-purple-50 p-4 shadow-sm">
+            <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-indigo-400">全メンバー合計</p>
+            <div className="grid grid-cols-3 gap-3">
+              <div className="rounded-xl bg-white/70 p-3 text-center shadow-sm">
+                <div className="mb-0.5 text-[11px] text-slate-500">初期粗利合計</div>
+                <div className={`text-base font-bold tabular-nums sm:text-lg ${grandTotals.initial >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                  ¥{fmt(grandTotals.initial)}
+                </div>
+              </div>
+              <div className="rounded-xl bg-white/70 p-3 text-center shadow-sm">
+                <div className="mb-0.5 text-[11px] text-slate-500">月額粗利合計</div>
+                <div className={`text-base font-bold tabular-nums sm:text-lg ${grandTotals.monthly >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                  ¥{fmt(grandTotals.monthly)}
+                </div>
+              </div>
+              <div className="rounded-xl bg-indigo-600 p-3 text-center shadow-sm">
+                <div className="mb-0.5 text-[11px] text-indigo-200">LTV合計</div>
+                <div className={`text-base font-bold tabular-nums sm:text-lg ${grandTotals.ltv >= 0 ? 'text-white' : 'text-rose-300'}`}>
+                  ¥{fmt(grandTotals.ltv)}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* メンバー一覧 */}
         <div className="mb-4 flex items-center justify-between">
