@@ -679,11 +679,11 @@ export default function PriceSimulatorPage() {
   // レンダリング
   // =====================================================
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
-      {/* ===== ヘッダー (sticky) ===== */}
-      <div className="sticky top-0 z-40 border-b border-slate-200/70 bg-white/80 backdrop-blur-md">
-        <div className="mx-auto max-w-[1440px] px-3 py-3 sm:px-4 sm:py-3 md:px-6 lg:px-8">
-          <header className="flex items-center justify-between gap-3">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-3 sm:p-4 md:p-6 lg:p-8">
+      <div className="mx-auto max-w-[1440px]">
+
+        {/* ===== ヘッダー（タイトルのみ・スクロールで流れる） ===== */}
+        <header className="mb-4 pr-36 sm:mb-6 sm:pr-48">
           <div className="flex min-w-0 items-center gap-2 sm:gap-3">
             <div className="shrink-0 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 p-2 text-white shadow-lg shadow-indigo-200 sm:p-2.5">
               <Calculator className="h-5 w-5 sm:h-6 sm:w-6" />
@@ -693,33 +693,30 @@ export default function PriceSimulatorPage() {
               <p className="hidden text-sm text-slate-500 sm:block">サブスク型Web制作サービスの収益性をリアルタイムに可視化</p>
             </div>
           </div>
-          <div className="flex shrink-0 items-center gap-2">
-            {snapshots.length > 0 && (
-              <button
-                type="button"
-                onClick={() => setLoadModalOpen(true)}
-                className="flex items-center gap-2 rounded-full border border-indigo-200 bg-white px-4 py-2 text-sm font-semibold text-indigo-600 shadow-sm transition hover:bg-indigo-50 active:scale-95"
-              >
-                <ArrowDownToLine className="h-4 w-4" />
-                <span className="hidden sm:inline">読み込み</span>
-                <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-indigo-100 text-xs font-bold text-indigo-700 sm:ml-0.5">{snapshots.length}</span>
-              </button>
-            )}
+        </header>
+
+        {/* ===== 保存・読み込みボタン（fixed・常時追従） ===== */}
+        <div className="fixed top-3 right-3 z-40 flex items-center gap-2 sm:top-4 sm:right-4">
+          {snapshots.length > 0 && (
             <button
               type="button"
-              onClick={() => { setSaveName(''); setSaveModalOpen(true); }}
-              className="flex items-center gap-2 rounded-full bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700 active:scale-95"
+              onClick={() => setLoadModalOpen(true)}
+              className="flex items-center gap-2 rounded-full border border-indigo-200 bg-white/90 px-3 py-2 text-sm font-semibold text-indigo-600 shadow-md backdrop-blur-sm transition hover:bg-indigo-50 active:scale-95 sm:px-4"
             >
-              <Save className="h-4 w-4" />
-              <span>保存</span>
+              <ArrowDownToLine className="h-4 w-4" />
+              <span className="hidden sm:inline">読み込み</span>
+              <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-indigo-100 text-xs font-bold text-indigo-700 sm:ml-0.5">{snapshots.length}</span>
             </button>
-          </div>
-          </header>
+          )}
+          <button
+            type="button"
+            onClick={() => { setSaveName(''); setSaveModalOpen(true); }}
+            className="flex items-center gap-2 rounded-full bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-md transition hover:bg-indigo-700 active:scale-95 sm:px-4"
+          >
+            <Save className="h-4 w-4" />
+            <span>保存</span>
+          </button>
         </div>
-      </div>
-
-      {/* ===== メインコンテンツ ===== */}
-      <div className="mx-auto max-w-[1440px] p-3 sm:p-4 md:p-6 lg:p-8">
 
         {/* ===== 前提条件 ===== */}
         <Section icon={<Settings className="h-4 w-4" />} title="① 前提条件・原価入力" subtitle="シミュレーション全体に適用される共通パラメータ">
