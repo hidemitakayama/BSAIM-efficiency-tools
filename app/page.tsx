@@ -818,7 +818,7 @@ export default function PriceSimulatorPage() {
                       {/* ---- 作業時間 ---- */}
                       {st.enabled && (
                         <div className="mt-4 grid grid-cols-2 gap-3 border-t border-indigo-100 pt-3">
-                          <NumberField compact icon={<Clock className="h-3.5 w-3.5" />} label="初期作業時間" suffix="h" value={st.initialHours} onChange={(v) => updateService(s.id, { initialHours: v })} step={0.5} min={0} />
+                          <NumberField compact icon={<Clock className="h-3.5 w-3.5" />} label="初期作業時間(納品までにかかった時間)" suffix="h" value={st.initialHours} onChange={(v) => updateService(s.id, { initialHours: v })} step={0.5} min={0} />
                           <NumberField compact icon={<Clock className="h-3.5 w-3.5" />} label="月次作業時間" suffix="h/月" value={st.monthlyHours} onChange={(v) => updateService(s.id, { monthlyHours: v })} step={0.5} min={0} />
                         </div>
                       )}
