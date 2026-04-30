@@ -232,33 +232,77 @@ export default function PriceSimulatorPage() {
   const [snapshots,         setSnapshots]         = useState<Snapshot[]>([]);
   const [loadModalOpen,     setLoadModalOpen]     = useState(false);
 
-  // localStorage 復元
+  // クラウド同期
+  const loaded    = useRef(false);
+  const syncTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'error'>('idle');
+
+  // クラウド優先で復元（失敗時 localStorage フォールバック）
   useEffect(() => {
-    try {
-      const snapsRaw = localStorage.getItem(SNAPSHOTS_KEY);
-      if (snapsRaw) setSnapshots(JSON.parse(snapsRaw));
-    } catch { /* ignore */ }
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (!raw) return;
-      const saved: AppData = JSON.parse(raw);
-      if (Array.isArray(saved.members)) {
-        setMembers(saved.members.map(m => ({
-          ...mkMember(m.id, m.name),
-          ...m,
-          clients: (m.clients || []).map(c => ({
-            ...mkClient(c.id, c.name),
-            ...c,
-            serviceState: Object.fromEntries(
-              SERVICES.map(s => [s.id, { ...mkServiceState(s), ...(c.serviceState?.[s.id] || {}) }])
-            ),
-          })),
-        })));
-      }
-      if (saved.nextMemberId) setNextMemberId(saved.nextMemberId);
-    } catch { /* ignore */ }
+    const restoreMembers = (savedMembers: Member[]) =>
+      savedMembers.map(m => ({
+        ...mkMember(m.id, m.name),
+        ...m,
+        clients: (m.clients || []).map(c => ({
+          ...mkClient(c.id, c.name),
+          ...c,
+          serviceState: Object.fromEntries(
+            SERVICES.map(s => [s.id, { ...mkServiceState(s), ...(c.serviceState?.[s.id] || {}) }])
+          ),
+        })),
+      }));
+
+    const load = async () => {
+      // クラウドから読み込み
+      try {
+        const res = await fetch('/api/data');
+        if (res.ok) {
+          const saved = await res.json();
+          if (Array.isArray(saved.members)) setMembers(restoreMembers(saved.members));
+          if (saved.nextMemberId) setNextMemberId(saved.nextMemberId);
+          if (Array.isArray(saved.snapshots)) setSnapshots(saved.snapshots);
+          loaded.current = true;
+          return;
+        }
+      } catch { /* ignore */ }
+      // localStorage フォールバック
+      try {
+        const snapsRaw = localStorage.getItem(SNAPSHOTS_KEY);
+        if (snapsRaw) setSnapshots(JSON.parse(snapsRaw));
+      } catch { /* ignore */ }
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (raw) {
+          const saved: AppData = JSON.parse(raw);
+          if (Array.isArray(saved.members)) setMembers(restoreMembers(saved.members));
+          if (saved.nextMemberId) setNextMemberId(saved.nextMemberId);
+        }
+      } catch { /* ignore */ }
+      loaded.current = true;
+    };
+    load();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // 変更をクラウドへ自動同期（デバウンス 2 秒）
+  useEffect(() => {
+    if (!loaded.current) return;
+    if (syncTimer.current) clearTimeout(syncTimer.current);
+    syncTimer.current = setTimeout(async () => {
+      setSyncStatus('syncing');
+      try {
+        await fetch('/api/data', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ members, nextMemberId, snapshots }),
+        });
+        setSyncStatus('idle');
+      } catch {
+        setSyncStatus('error');
+      }
+    }, 2000);
+    return () => { if (syncTimer.current) clearTimeout(syncTimer.current); };
+  }, [members, nextMemberId, snapshots]);
 
   // Member CRUD
   const addMember = () => {
@@ -347,6 +391,12 @@ export default function PriceSimulatorPage() {
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
       {/* ===== Fixed: 保存・読み込みボタン ===== */}
       <div className="fixed top-3 right-3 z-40 flex items-center gap-2 sm:top-4 sm:right-4">
+        {syncStatus === 'syncing' && (
+          <span className="text-[11px] text-slate-400">同期中...</span>
+        )}
+        {syncStatus === 'error' && (
+          <span className="text-[11px] font-medium text-rose-500">同期エラー</span>
+        )}
         {snapshots.length > 0 && (
           <button type="button" onClick={() => setLoadModalOpen(true)}
             className="flex items-center gap-2 rounded-full border border-indigo-200 bg-white/90 px-3 py-2 text-sm font-semibold text-indigo-600 shadow-md backdrop-blur-sm transition hover:bg-indigo-50 active:scale-95 sm:px-4">
