@@ -487,7 +487,7 @@ function DashboardView({ members, onSelectMember, onAddMember, onDeleteMember, o
             </div>
             <div>
               <h1 className="text-lg font-bold text-slate-900 sm:text-2xl md:text-3xl">料金・利益シミュレーター</h1>
-              <p className="hidden text-sm text-slate-500 sm:block">担当者・クライアントごとに収益を管理</p>
+              <p className="hidden text-sm text-slate-500 sm:block">AI Marketingメンバー1人1人の時間と付加価値を守るためのツール</p>
             </div>
           </div>
         </header>
