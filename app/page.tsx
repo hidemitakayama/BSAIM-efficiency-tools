@@ -679,10 +679,11 @@ export default function PriceSimulatorPage() {
   // レンダリング
   // =====================================================
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-3 sm:p-4 md:p-6 lg:p-8">
-      <div className="mx-auto max-w-[1440px]">
-        {/* ===== ヘッダー ===== */}
-        <header className="mb-4 flex items-center justify-between gap-3 sm:mb-6">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
+      {/* ===== ヘッダー (sticky) ===== */}
+      <div className="sticky top-0 z-40 border-b border-slate-200/70 bg-white/80 backdrop-blur-md">
+        <div className="mx-auto max-w-[1440px] px-3 py-3 sm:px-4 sm:py-3 md:px-6 lg:px-8">
+          <header className="flex items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-2 sm:gap-3">
             <div className="shrink-0 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 p-2 text-white shadow-lg shadow-indigo-200 sm:p-2.5">
               <Calculator className="h-5 w-5 sm:h-6 sm:w-6" />
@@ -713,7 +714,12 @@ export default function PriceSimulatorPage() {
               <span>保存</span>
             </button>
           </div>
-        </header>
+          </header>
+        </div>
+      </div>
+
+      {/* ===== メインコンテンツ ===== */}
+      <div className="mx-auto max-w-[1440px] p-3 sm:p-4 md:p-6 lg:p-8">
 
         {/* ===== 前提条件 ===== */}
         <Section icon={<Settings className="h-4 w-4" />} title="① 前提条件・原価入力" subtitle="シミュレーション全体に適用される共通パラメータ">
