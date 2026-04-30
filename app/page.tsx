@@ -679,11 +679,24 @@ function MemberView({ member, onBack, onSelectClient, onAddClient, onDeleteClien
                     </button>
                   </div>
 
-                  {enabledNames.length > 0 && (
+                  {m.enabledServices.length > 0 && (
                     <div className="mb-3 flex flex-wrap gap-1">
-                      {enabledNames.map(n => (
-                        <span key={n} className="rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-medium text-indigo-600">{n}</span>
-                      ))}
+                      {m.enabledServices.map(s => {
+                        const planName = isHpService(s.id)
+                          ? HP_PLANS.find(p => p.id === client.serviceState[s.id]?.hpPlan)?.name
+                          : null;
+                        const isBundle = HP_BUNDLE_IDS.includes(s.id as (typeof HP_BUNDLE_IDS)[number]);
+                        const label = planName
+                          ? isBundle
+                            ? s.name.replace('HP', `HP(${planName})`)
+                            : `${s.name}(${planName})`
+                          : s.name;
+                        return (
+                          <span key={s.id} className="rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-medium text-indigo-600">
+                            {label}
+                          </span>
+                        );
+                      })}
                     </div>
                   )}
 
@@ -870,9 +883,6 @@ function ClientDetailView({ client, member, onBack, onUpdateClient }: {
             <ChevronLeft className="h-4 w-4" />{member.name}
           </button>
           <div className="flex items-center gap-3">
-            <div className="shrink-0 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 p-2 text-white shadow-lg shadow-indigo-200 sm:p-2.5">
-              <Calculator className="h-5 w-5 sm:h-6 sm:w-6" />
-            </div>
             <input type="text" value={client.name} onChange={e => onUpdateClient({ name: e.target.value })}
               className="text-lg font-bold text-slate-900 sm:text-2xl bg-transparent border-b border-transparent focus:border-indigo-400 focus:outline-none flex-1" />
           </div>
